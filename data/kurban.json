@@ -1,0 +1,98 @@
+{
+  "organizations": [
+    {
+      "name": "Kızılay",
+      "slug": "kizilay",
+      "description": "Türkiye'nin en köklü yardım kuruluşlarından biri.",
+      "founded": "1868",
+      "projects": [
+        {
+          "type": "yurt-ici",
+          "title": "Yurt İçi Adak Akika Şükür Kurbanı",
+          "price": 13250,
+          "description": "Vekaletinizle elde edilen kurban etleri, aşevlerimiz aracılığıyla ihtiyaç sahiplerine ulaştırılmaktadır.",
+          "donation_url": "https://bagis.kizilay.org.tr/tr/bagis/bagisyap/476/yurt-ici-adak-akika-sukur-kurbani?CurrencyCode=949"
+        },
+        {
+          "type": "yurt-disi",
+          "title": "Yurt Dışı Adak Akika Şükür Kurbanı",
+          "price": 5250,
+          "description": "Vekaletinizle elde edilen kurban etleri, ihtiyaç sahiplerine dünyanın dört bir yanında ulaştırılmaktadır.",
+          "donation_url": "https://bagis.kizilay.org.tr/tr/bagis/bagisyap/477/yurt-disi-adak-akika-sukur-kurbani?CurrencyCode=949"
+        },
+        {
+          "type": "genel",
+          "title": "Genel Bağış",
+          "price": 0,
+          "description": "Ülkemizde ve dünyada ihtiyaç sahiplerine yönelik insani yardım faaliyetleri yapılmaktadır.",
+          "donation_url": "https://bagis.kizilay.org.tr/tr/bagis/bagisyap/7/genel-bagis?CurrencyCode=949"
+        }
+      ]
+    },
+    {
+      "name": "İHH",
+      "slug": "ihh",
+      "description": "İnsani yardım çalışmaları yürüten sivil toplum kuruluşu.",
+      "founded": "1992",
+      "projects": [
+        {
+          "type": "vacip",
+          "title": "Kurban (Vacip)",
+          "price": 11500,
+          "description": "Kurban vekaletlerinizi Türkiye ve KKTC ile birlikte 61 ülkede milyonlarca ihtiyaç sahibine ulaştıracak ve kurbanın bereketini kardeşliğe dönüştüreceğiz.",
+          "donation_url": "https://ihh.org.tr/bagis/kurban"
+        },
+        {
+          "type": "akika",
+          "title": "Akika Kurbanı",
+          "price": 11500,
+          "description": "Akika kurbanınız, kesimin ardından paylara bölünerek acil ihtiyaç bölgelerindeki ihtiyaç sahiplerine ulaştırılır.",
+          "donation_url": "https://ihh.org.tr/bagis/akika-kurbani"
+        },
+        {
+          "type": "adak",
+          "title": "Adak Kurbanı",
+          "price": 11500,
+          "description": "İhtiyaç sahiplerine ulaştırılmak üzere kurban kesimi gerçekleştirilir.",
+          "donation_url": "https://ihh.org.tr/bagis/adak-kurbani"
+        },
+        {
+          "type": "sukur",
+          "title": "Şükür Kurbanı",
+          "price": 11500,
+          "description": "Bağışlanan kurbanlar ihtiyaç sahiplerine ulaştırılır.",
+          "donation_url": "https://ihh.org.tr/bagis/sukur-kurbani"
+        }
+      ]
+    },
+    {
+      "name": "Diyanet",
+      "slug": "diyanet",
+      "description": "Türkiye Diyanet Vakfı aracılığıyla kurban bağışı organizasyonları yürütür.",
+      "founded": "1975",
+      "projects": [
+        {
+          "type": "yurt-ici",
+          "title": "Vekaleten Kurban Yurt İçi",
+          "price": 18000,
+          "description": "Başta Vacip olmak üzere Adak, Akika, Şükür ve Nafile kurbanlarınızı Türkiye Diyanet Vakfı güvencesiyle kesiyor, ihtiyaç sahiplerine ulaştırıyoruz.",
+          "donation_url": "https://bagis.tdv.org"
+        },
+        {
+          "type": "yurt-disi",
+          "title": "Vekaleten Kurban Yurt Dışı",
+          "price": 7000,
+          "description": "Başta Vacip olmak üzere Adak, Akika, Şükür ve Nafile kurbanlarınızı Türkiye Diyanet Vakfı güvencesiyle kesiyor, ihtiyaç sahiplerine ulaştırıyoruz.",
+          "donation_url": "https://bagis.tdv.org"
+        },
+        {
+          "type": "filistin",
+          "title": "Vekaleten Kurban Filistin",
+          "price": 15000,
+          "description": "Vakfımıza emanet ettiğiniz vacip kurban bağışlarınızı kesiyor ve ihtiyaç sahibi Filistinli ailelere ulaştırıyoruz.",
+          "donation_url": "https://bagis.tdv.org"
+        }
+      ]
+    }
+  ]
+}

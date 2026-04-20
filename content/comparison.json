@@ -1,0 +1,12 @@
+{
+  "empty": "Karşılaştırmak için bir veya daha fazla proje seçin.",
+  "title": "Seçili Projeleri Karşılaştır",
+  "mobileTitle": "Karşılaştırma",
+  "headers": {
+    "organization": "Kurum",
+    "projectTitle": "Proje başlığı",
+    "price": "Hisse başı fiyat",
+    "description": "Açıklama",
+    "donate": "Bağış"
+  }
+}

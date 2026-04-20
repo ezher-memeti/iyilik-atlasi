@@ -1,0 +1,29 @@
+{
+  "metadata": {
+    "title": "Kurban Bağışını Karşılaştır",
+    "description": "Kurban bağışı seçeneklerini kurumlara göre karşılaştırın."
+  },
+  "home": {
+    "eyebrow": "Güven odaklı karşılaştırma",
+    "title": "Kurban Bağışını Karşılaştır",
+    "description": "Önce kurumları inceleyin, ardından tüm Kurban seçeneklerini tek ekranda karşılaştırın.",
+    "cta": "Kurban Seçeneklerini Gör",
+    "sectionEyebrow": "Kurumlar",
+    "sectionTitle": "Bağış yapacağınız kurumu tanıyın"
+  },
+  "kurban": {
+    "eyebrow": "Tüm Kurban seçenekleri",
+    "title": "Kurban Bağışı Karşılaştırması",
+    "description": "Kızılay, İHH ve Diyanet kurban seçeneklerini kurumlara göre tek ekranda inceleyin. Karşılaştırmak istediğiniz projeleri seçin."
+  },
+  "organization": {
+    "eyebrow": "Kurum profili",
+    "projectsEyebrow": "Kurban seçenekleri",
+    "projectsTitle": "Tüm Kurban Projeleri"
+  },
+  "notFound": {
+    "title": "Sayfa bulunamadı",
+    "description": "Aradığınız kurban türü bulunamadı.",
+    "homeButton": "Ana sayfaya dön"
+  }
+}

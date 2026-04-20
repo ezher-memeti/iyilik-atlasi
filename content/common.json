@@ -1,0 +1,37 @@
+{
+  "brand": "İyilik Atlası",
+  "brandParts": {
+    "primary": "İyilik",
+    "secondary": "Atlası"
+  },
+  "navigation": {
+    "organizations": "Kurumlar",
+    "kurban": "Kurban"
+  },
+  "buttons": {
+    "details": "Detayları Gör",
+    "donate": "Bağış Yap",
+    "clear": "Temizle",
+    "close": "Kapat"
+  },
+  "labels": {
+    "founded": "Kuruluş",
+    "foundedYear": "Kuruluş yılı",
+    "compare": "Karşılaştır",
+    "optionCountSuffix": "seçenek",
+    "perKurbanPrice": "Hisse başı fiyat",
+    "selectedCountSuffix": "seçili",
+    "viewComparison": "Karşılaştırmayı Gör",
+    "toggleTheme": "Temayı değiştir",
+    "expandOrganization": "Kurumu aç",
+    "collapseOrganization": "Kurumu kapat"
+  },
+  "trust": {
+    "noPayment": "Bu platform bağış işlemi gerçekleştirmez. Bağışlar ilgili kurumların resmi sitelerine yönlendirilir.",
+    "officialDescriptions": "Açıklamalar ilgili kurumların resmi sitelerinden alınmıştır."
+  },
+  "footer": {
+    "copyright": "© 2026 İyilik Atlası. Tüm hakları saklıdır.",
+    "disclaimer": "Bu platform yalnızca karşılaştırma ve yönlendirme amacıyla hazırlanmıştır."
+  }
+}
