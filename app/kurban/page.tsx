@@ -1,7 +1,24 @@
 import { Disclaimer } from "@/components/Disclaimer";
 import { KurbanComparisonClient } from "@/components/KurbanComparisonClient";
+import { createSeoMetadata } from "@/components/SEO";
 import pages from "@/content/pages.json";
 import { getAllProjects, getOrganizationGroups } from "@/lib/kurban";
+
+export const metadata = createSeoMetadata({
+  title: "Kurban Bağışı Karşılaştırma 2026 | Kızılay, IHH, Diyanet",
+  description:
+    "İyilik Atlası ve iyilikatlasi ile Kızılay, IHH ve Diyanet kurban bağışı seçeneklerini karşılaştırın. Farklı kurban türlerini inceleyin ve size uygun olanı seçin.",
+  keywords: [
+    "kurban bağışı karşılaştırma",
+    "kurban bağışı 2026",
+    "Kızılay kurban bağışı",
+    "IHH kurban bağışı",
+    "Diyanet kurban bağışı",
+    "İyilik Atlası",
+    "iyilikatlasi",
+  ],
+  url: "/kurban",
+});
 
 export default function KurbanIndexPage() {
   const groups = getOrganizationGroups();

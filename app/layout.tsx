@@ -2,11 +2,24 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Footer } from "@/components/Footer";
 import { Navbar } from "@/components/Navbar";
+import { StructuredData } from "@/components/StructuredData";
+import { createSeoMetadata, siteUrl } from "@/components/SEO";
 import pages from "@/content/pages.json";
 
 export const metadata: Metadata = {
-  title: pages.metadata.title,
-  description: pages.metadata.description,
+  ...createSeoMetadata({
+    title: pages.metadata.title,
+    description: pages.metadata.description,
+    keywords: [
+      "İyilik Atlası",
+      "iyilikatlasi",
+      "kurban bağışı",
+      "bağış karşılaştırma",
+      "kurban fiyatları",
+    ],
+    url: "/",
+  }),
+  metadataBase: new URL(siteUrl),
   icons: {
     icon: [
       {
@@ -41,6 +54,14 @@ export const metadata: Metadata = {
   },
 };
 
+const websiteSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: "İyilik Atlası",
+  alternateName: "iyilikatlasi",
+  url: siteUrl,
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -52,6 +73,7 @@ export default function RootLayout({
         <Navbar />
         <div className="flex-1">{children}</div>
         <Footer />
+        <StructuredData data={websiteSchema} />
       </body>
     </html>
   );

@@ -1,8 +1,23 @@
 import Link from "next/link";
 import { Disclaimer } from "@/components/Disclaimer";
 import { OrganizationCard } from "@/components/OrganizationCard";
+import { createSeoMetadata } from "@/components/SEO";
 import pages from "@/content/pages.json";
 import { organizations } from "@/lib/kurban";
+
+export const metadata = createSeoMetadata({
+  title: "İyilik Atlası | Kurban Bağışı Karşılaştırma Platformu",
+  description:
+    "İyilik Atlası ile kurban bağışı seçeneklerini karşılaştırın. iyilikatlasi üzerinden Kızılay, IHH ve Diyanet kurban bağışlarını inceleyin ve en doğru seçimi yapın.",
+  keywords: [
+    "iyilik atlası",
+    "iyilikatlasi",
+    "kurban bağışı",
+    "bağış karşılaştırma",
+    "kurban fiyatları",
+  ],
+  url: "/",
+});
 
 export default function HomePage() {
   return (

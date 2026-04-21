@@ -6,6 +6,7 @@ export function Footer() {
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-4 py-6 text-sm text-slate-600 dark:text-slate-400 sm:px-6 md:flex-row md:items-start md:justify-between lg:px-8">
         <p className="shrink-0">{common.footer.copyright}</p>
         <div className="space-y-1 md:max-w-2xl md:text-right">
+          <p>{common.footer.disclaimer}</p>
           <p>{common.trust.noPayment}</p>
           <p>{common.trust.officialDescriptions}</p>
         </div>
