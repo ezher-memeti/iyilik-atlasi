@@ -38,9 +38,9 @@ export const organizations = kurbanData.organizations as KurbanOrganization[];
 
 export function getAllProjects() {
   return organizations.flatMap((organization) =>
-    organization.projects.map((project) => ({
+    organization.projects.map((project, projectIndex) => ({
       ...project,
-      id: `${organization.slug}-${project.type}-${project.title}`,
+      id: `${organization.slug}-${projectIndex}-${project.type}-${project.title}`,
       organization: {
         name: organization.name,
         slug: organization.slug,

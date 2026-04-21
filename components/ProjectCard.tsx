@@ -1,4 +1,5 @@
 import common from "@/content/common.json";
+import { SafeLink } from "@/components/SafeLink";
 import { formatPrice, type KurbanProjectWithOrganization } from "@/lib/kurban";
 
 type ProjectCardProps = {
@@ -59,14 +60,14 @@ export function ProjectCard({
         {project.description}
       </p>
       <div className={`mt-5 ${compactOnMobile ? "hidden md:block" : ""}`}>
-        <a
+        <SafeLink
           href={project.donation_url}
-          target="_blank"
-          rel="noreferrer"
           className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:bg-emerald-500 dark:text-emerald-950 dark:hover:bg-emerald-300 dark:focus:ring-offset-slate-950 sm:w-auto"
+          disabledClassName="inline-flex min-h-11 w-full cursor-not-allowed items-center justify-center rounded-md bg-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-400 sm:w-auto"
+          invalidLabel={common.labels.invalidDonationLink}
         >
           {common.buttons.donate}
-        </a>
+        </SafeLink>
       </div>
     </article>
   );

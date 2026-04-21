@@ -35,12 +35,12 @@ export function OrganizationDetail({ organization }: OrganizationDetailProps) {
           {pages.organization.projectsTitle}
         </h2>
         <div className="mt-5 grid gap-4 lg:grid-cols-2">
-          {organization.projects.map((project) => (
+          {organization.projects.map((project, projectIndex) => (
             <ProjectCard
-              key={`${organization.slug}-${project.title}`}
+              key={`${organization.slug}-${projectIndex}-${project.title}`}
               project={{
                 ...project,
-                id: `${organization.slug}-${project.type}-${project.title}`,
+                id: `${organization.slug}-${projectIndex}-${project.type}-${project.title}`,
                 organization: {
                   name: organization.name,
                   slug: organization.slug,

@@ -47,12 +47,12 @@ export function KurbanComparisonClient({
     setSelectedIds([]);
   }
 
+  function removeProject(projectId: string) {
+    setSelectedIds((current) => current.filter((id) => id !== projectId));
+  }
+
   return (
     <>
-      <div id="comparison" className="scroll-mt-24">
-        <ComparisonTable projects={selectedProjects} />
-      </div>
-
       <section className="space-y-3 md:space-y-7">
         {groups.map((group) => (
           <div
@@ -103,13 +103,20 @@ export function KurbanComparisonClient({
           </div>
         ))}
       </section>
+      <div id="comparison" className="scroll-mt-24">
+        <ComparisonTable projects={selectedProjects} onRemove={removeProject} />
+      </div>
 
       {selectedProjects.length > 0 ? (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-emerald-900/10 bg-[#f7f3ea]/95 px-4 py-3 shadow-[0_-12px_30px_rgba(15,23,42,0.12)] backdrop-blur dark:border-white/10 dark:bg-[#08130f]/95 md:hidden">
-          <div className="mx-auto flex max-w-6xl items-center gap-2">
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-emerald-900/10 bg-[#f7f3ea]/95 px-4 py-3 shadow-[0_-12px_30px_rgba(15,23,42,0.12)] backdrop-blur dark:border-white/10 dark:bg-[#08130f]/95">
+          <div className="mx-auto flex max-w-6xl items-center gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-emerald-950 dark:text-emerald-50">
-                {selectedProjects.length} {common.labels.selectedCountSuffix}
+                {common.labels.comparisonReady} · {selectedProjects.length}{" "}
+                {common.labels.selectedCountSuffix}
+              </p>
+              <p className="mt-0.5 hidden text-xs text-slate-600 dark:text-slate-400 sm:block">
+                {common.labels.comparisonReadyDescription}
               </p>
             </div>
             <button
@@ -121,7 +128,7 @@ export function KurbanComparisonClient({
             </button>
             <a
               href="#comparison"
-              className="inline-flex min-h-11 items-center justify-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white dark:bg-emerald-500 dark:text-emerald-950"
+              className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white dark:bg-emerald-500 dark:text-emerald-950"
             >
               {common.labels.viewComparison}
             </a>

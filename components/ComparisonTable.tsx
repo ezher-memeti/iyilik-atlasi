@@ -1,12 +1,14 @@
 import common from "@/content/common.json";
 import comparison from "@/content/comparison.json";
+import { SafeLink } from "@/components/SafeLink";
 import { formatPrice, type KurbanProjectWithOrganization } from "@/lib/kurban";
 
 type ComparisonTableProps = {
   projects: KurbanProjectWithOrganization[];
+  onRemove?: (projectId: string) => void;
 };
 
-export function ComparisonTable({ projects }: ComparisonTableProps) {
+export function ComparisonTable({ projects, onRemove }: ComparisonTableProps) {
   if (projects.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-emerald-900/20 bg-white/70 p-6 text-sm text-slate-700 dark:border-emerald-300/30 dark:bg-white/[0.04] dark:text-slate-300">
@@ -26,8 +28,19 @@ export function ComparisonTable({ projects }: ComparisonTableProps) {
         {projects.map((project) => (
           <article
             key={project.id}
-            className="rounded-md border border-emerald-900/10 bg-[#fbf8f0] p-4 dark:border-white/10 dark:bg-white/[0.04]"
+            className="relative rounded-md border border-emerald-900/10 bg-[#fbf8f0] p-4 pr-12 dark:border-white/10 dark:bg-white/[0.04]"
           >
+            {onRemove ? (
+              <button
+                type="button"
+                onClick={() => onRemove(project.id)}
+                aria-label={common.labels.removeFromComparison}
+                title={common.labels.removeFromComparison}
+                className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full border border-emerald-900/10 bg-white/85 text-lg font-semibold leading-none text-slate-600 transition hover:border-emerald-300 hover:text-emerald-800 dark:border-white/10 dark:bg-white/[0.08] dark:text-slate-300 dark:hover:border-emerald-300/40 dark:hover:text-emerald-100"
+              >
+                ×
+              </button>
+            ) : null}
             <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
               {project.organization.name}
             </p>
@@ -45,14 +58,14 @@ export function ComparisonTable({ projects }: ComparisonTableProps) {
             <p className="mt-3 text-sm leading-6 text-slate-700 dark:text-slate-300">
               {project.description}
             </p>
-            <a
+            <SafeLink
               href={project.donation_url}
-              target="_blank"
-              rel="noreferrer"
               className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white dark:bg-emerald-500 dark:text-emerald-950"
+              disabledClassName="mt-4 inline-flex min-h-11 w-full cursor-not-allowed items-center justify-center rounded-md bg-slate-300 px-4 text-sm font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+              invalidLabel={common.labels.invalidDonationLink}
             >
               {common.buttons.donate}
-            </a>
+            </SafeLink>
           </article>
         ))}
       </div>
@@ -93,14 +106,27 @@ export function ComparisonTable({ projects }: ComparisonTableProps) {
                   {project.description}
                 </td>
                 <td className="px-4 py-4 sm:px-6">
-                  <a
-                    href={project.donation_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex min-w-28 items-center justify-center rounded-md bg-emerald-700 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:bg-emerald-500 dark:text-emerald-950 dark:hover:bg-emerald-300 dark:focus:ring-offset-slate-950"
-                  >
-                    {common.buttons.donate}
-                  </a>
+                  <div className="flex items-center gap-2">
+                    <SafeLink
+                      href={project.donation_url}
+                      className="inline-flex min-w-28 items-center justify-center rounded-md bg-emerald-700 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:bg-emerald-500 dark:text-emerald-950 dark:hover:bg-emerald-300 dark:focus:ring-offset-slate-950"
+                      disabledClassName="inline-flex min-w-28 cursor-not-allowed items-center justify-center rounded-md bg-slate-300 px-3 py-2 text-sm font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                      invalidLabel={common.labels.invalidDonationLink}
+                    >
+                      {common.buttons.donate}
+                    </SafeLink>
+                    {onRemove ? (
+                    <button
+                      type="button"
+                      onClick={() => onRemove(project.id)}
+                      aria-label={common.labels.removeFromComparison}
+                      title={common.labels.removeFromComparison}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-emerald-900/10 bg-white/85 text-lg font-semibold leading-none text-slate-600 transition hover:border-emerald-300 hover:text-emerald-800 dark:border-white/10 dark:bg-white/[0.08] dark:text-slate-300 dark:hover:border-emerald-300/40 dark:hover:text-emerald-100"
+                    >
+                      ×
+                    </button>
+                    ) : null}
+                  </div>
                 </td>
               </tr>
             ))}

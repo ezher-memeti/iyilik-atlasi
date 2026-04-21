@@ -21,7 +21,7 @@ npm run dev
 Open:
 
 ```text
-http://localhost:3000
+localhost:3000
 ```
 
 ## Routes

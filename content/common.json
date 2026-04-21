@@ -12,7 +12,8 @@
     "details": "Detayları Gör",
     "donate": "Bağış Yap",
     "clear": "Temizle",
-    "close": "Kapat"
+    "close": "Kapat",
+    "remove": "Kaldır"
   },
   "labels": {
     "founded": "Kuruluş",
@@ -22,9 +23,13 @@
     "perKurbanPrice": "Hisse başı fiyat",
     "selectedCountSuffix": "seçili",
     "viewComparison": "Karşılaştırmayı Gör",
+    "comparisonReady": "Karşılaştırma listen hazır",
+    "comparisonReadyDescription": "Seçilen projeleri sayfanın altında karşılaştırabilirsin.",
     "toggleTheme": "Temayı değiştir",
     "expandOrganization": "Kurumu aç",
-    "collapseOrganization": "Kurumu kapat"
+    "collapseOrganization": "Kurumu kapat",
+    "invalidDonationLink": "Bağış bağlantısı doğrulanamadı",
+    "removeFromComparison": "Karşılaştırmadan kaldır"
   },
   "trust": {
     "noPayment": "Bu platform bağış işlemi gerçekleştirmez. Bağışlar ilgili kurumların resmi sitelerine yönlendirilir.",

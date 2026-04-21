@@ -93,6 +93,49 @@
           "donation_url": "https://bagis.tdv.org"
         }
       ]
+    },
+    {
+      "name": "Sadece İnsan",
+      "slug": "sadece-insan",
+      "description": "Sadece İnsan Uluslararası Yardım Derneği, bir grup hayırsever arkadaş tarafından 2012 yılında kuruldu.",
+      "founded": "2019",
+      "projects": [
+        {
+          "type": "gazze-kurban",
+          "title": "Gazze Kurban",
+          "price": 20000,
+          "description": "Gazze’nin mahzun sofralarına dondurulmuş kurban etleriyle umut taşıyoruz. Siz de bağışınızla bu zor günlerde Gazze’deki kardeşlerimizin bayram sevincine ortak olabilirsiniz.",
+          "donation_url": "https://sadeceinsan.org.tr/bagis/gazze-kurban"
+        },
+        {
+          "type": "afrika-kurban",
+          "title": "Vekaleten Kurban Yurt Dışı",
+          "price": 5000,
+          "description": "Kurban hisseleriniz Afrika’daki kardeşlerimize umut oluyor. Siz de vekaletinizi gönderin, bu bayram dualarda buluşalım.",
+          "donation_url": "https://sadeceinsan.org.tr/bagis/afrika-2026"
+        },
+        {
+          "type": "yurt-disi",
+          "title": "Yurt Dışı Adak Kurbanı",
+          "price": 4000,
+          "description": "Vakfımıza emanet ettiğiniz vacip kurban bağışlarınızı kesiyor ve ihtiyaç sahibi Filistinli ailelere ulaştırıyoruz.",
+          "donation_url": "https://sadeceinsan.org.tr/bagis/adak-kurbani"
+        },
+        {
+          "type": "yurt-disi",
+          "title": "Yurt Dışı Akika Kurbanı",
+          "price": 4000,
+          "description": "Akika kurbanlarınızı derneğimize bağışlayabilir, ihtiyaç sahiplerine ulaştırmamız için bize destek olabilirsiniz.",
+          "donation_url": "https://sadeceinsan.org.tr/bagis/akika-kurbani"
+        },
+        {
+          "type": "yurt-disi",
+          "title": "Yurt Dışı Şükür Kurbanı",
+          "price": 4000,
+          "description": "Şükür kurbanlarınızı derneğimize bağışlayabilir, ihtiyaç sahiplerine ulaştırmamız için bize destek olabilirsiniz.",
+          "donation_url": "https://sadeceinsan.org.tr/bagis/sukur-kurbani"
+        }
+      ]
     }
   ]
 }
