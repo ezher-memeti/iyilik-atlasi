@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Footer } from "@/components/Footer";
+import { GoogleAnalytics } from "@/components/GoogleAnalytics";
 import { Navbar } from "@/components/Navbar";
 import { StructuredData } from "@/components/StructuredData";
 import { createSeoMetadata, siteUrl } from "@/components/SEO";
@@ -70,6 +71,7 @@ export default function RootLayout({
   return (
     <html lang="tr" className="dark" suppressHydrationWarning>
       <body className="flex min-h-screen flex-col">
+        <GoogleAnalytics measurementId="G-B8B8WXESWG" />
         <Navbar />
         <div className="flex-1">{children}</div>
         <Footer />
