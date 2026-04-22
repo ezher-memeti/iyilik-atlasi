@@ -35,13 +35,19 @@ export function Navbar() {
               href="/"
               className="rounded-full px-3 py-1.5 transition hover:bg-emerald-50 hover:text-emerald-800 dark:hover:bg-emerald-400/10 dark:hover:text-emerald-100"
             >
-              {common.navigation.organizations}
+              Ana Sayfa
             </Link>
             <Link
-              href="/kurban"
+              href="/organizations"
               className="rounded-full px-3 py-1.5 transition hover:bg-emerald-50 hover:text-emerald-800 dark:hover:bg-emerald-400/10 dark:hover:text-emerald-100"
             >
-              {common.navigation.kurban}
+              Organizasyonlar
+            </Link>
+            <Link
+              href="/bagislar"
+              className="rounded-full px-3 py-1.5 transition hover:bg-emerald-50 hover:text-emerald-800 dark:hover:bg-emerald-400/10 dark:hover:text-emerald-100"
+            >
+              Bağışlar
             </Link>
           </div>
           <ThemeToggle />
