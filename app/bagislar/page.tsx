@@ -1,4 +1,3 @@
-import { Disclaimer } from "@/components/Disclaimer";
 import { KurbanComparisonClient } from "@/components/KurbanComparisonClient";
 import { createSeoMetadata } from "@/components/SEO";
 import pages from "@/content/pages.json";
@@ -26,20 +25,23 @@ export default function DonationsPage() {
   const projects = getAllProjects();
 
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 pb-28 pt-8 sm:px-6 md:pb-8 lg:px-8">
-      <section className="rounded-lg border border-emerald-900/10 bg-white/85 p-6 dark:border-white/10 dark:bg-white/[0.06]">
-        <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 pb-28 pt-8 sm:px-6 md:pb-10 lg:px-8">
+      <section className="rounded-3xl bg-[radial-gradient(circle_at_20%_0%,rgba(16,185,129,0.14),transparent_48%),linear-gradient(180deg,#ffffff_0%,#f6fbf7_100%)] px-6 py-10 dark:bg-[radial-gradient(circle_at_20%_0%,rgba(52,211,153,0.16),transparent_50%),linear-gradient(180deg,#10201B_0%,#0B1210_100%)]">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-300">
           {pages.kurban.eyebrow}
         </p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight text-emerald-950 sm:text-4xl dark:text-emerald-50">
+        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[#1F2937] sm:text-4xl dark:text-[#E5E7EB]">
           {pages.kurban.title}
         </h1>
-        <p className="mt-4 max-w-2xl text-base leading-7 text-slate-700 dark:text-slate-300">
+        <p className="mt-4 max-w-2xl text-base leading-8 text-[#6B7280] dark:text-[#9CA3AF]">
           {pages.kurban.description}
         </p>
       </section>
 
-      <Disclaimer />
+      <p className="mx-auto max-w-3xl text-center text-sm leading-7 text-[#6B7280] dark:text-[#9CA3AF]">
+        Bu platform bağış işlemi gerçekleştirmez. Seçtiğiniz projede bağış
+        yapmak için ilgili kurumun resmi sayfasına yönlendirilirsiniz.
+      </p>
 
       <KurbanComparisonClient groups={groups} projects={projects} />
     </main>

@@ -6,68 +6,66 @@ type ProjectCardProps = {
   project: KurbanProjectWithOrganization;
   selected?: boolean;
   onToggle?: (projectId: string) => void;
-  compactOnMobile?: boolean;
+  recommended?: boolean;
 };
 
 export function ProjectCard({
   project,
   selected = false,
   onToggle,
-  compactOnMobile = false,
+  recommended = false,
 }: ProjectCardProps) {
   return (
     <article
-      className={`rounded-lg border bg-white/85 p-4 transition dark:bg-white/[0.06] sm:p-5 ${
+      className={`rounded-2xl border p-5 shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-md dark:shadow-none ${
         selected
-          ? "border-emerald-600 bg-emerald-50/40 ring-1 ring-emerald-600/15 dark:border-emerald-500 dark:bg-emerald-950/15"
-          : "border-emerald-900/10 hover:border-emerald-300 dark:border-white/10 dark:hover:border-emerald-300/40"
+          ? "border-emerald-500 bg-emerald-500/8 ring-1 ring-emerald-500/35 dark:border-emerald-400/70 dark:bg-emerald-400/14 dark:ring-emerald-400/35"
+          : "border-slate-200/80 bg-white hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
       }`}
     >
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
-            {project.organization.name}
-          </p>
-          <h3 className="mt-2 text-lg font-semibold text-emerald-950 dark:text-emerald-50">
-            {project.title}
-          </h3>
-        </div>
-        {onToggle ? (
-          <label className="inline-flex min-h-10 w-full shrink-0 items-center justify-center gap-2 rounded-md border border-emerald-900/10 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 dark:border-emerald-300/20 dark:bg-emerald-400/10 dark:text-emerald-100 sm:w-fit sm:rounded-full sm:py-1.5 sm:text-xs">
-            <input
-              type="checkbox"
-              checked={selected}
-              onChange={() => onToggle(project.id)}
-              className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-            />
-            {common.labels.compare}
-          </label>
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+          {project.organization.name}
+        </p>
+        {recommended ? (
+          <span className="inline-flex shrink-0 items-center rounded-md bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-800 dark:bg-emerald-400/15 dark:text-emerald-200">
+            Önerilen
+          </span>
         ) : null}
       </div>
-      <div className="mt-5 rounded-md border border-emerald-900/10 bg-[#fbf8f0] px-4 py-3 dark:border-white/10 dark:bg-white/[0.04]">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
-          {common.labels.perKurbanPrice}
-        </p>
-        <p className="mt-1 text-xl font-bold text-emerald-950 dark:text-emerald-50">
-          {formatPrice(project.price)}
-        </p>
-      </div>
-      <p
-        className={`mt-4 text-sm leading-6 text-slate-700 dark:text-slate-300 ${
-          compactOnMobile ? "hidden md:block" : ""
-        }`}
-      >
+
+      <h3 className="mt-2 text-lg font-semibold leading-7 text-[#1F2937] dark:text-[#E5E7EB]">
+        {project.title}
+      </h3>
+      <p className="mt-4 text-3xl font-bold tracking-tight text-emerald-800 dark:text-emerald-200">
+        {formatPrice(project.price)}
+      </p>
+      <p className="mt-3 line-clamp-2 text-sm leading-7 text-[#6B7280] dark:text-[#9CA3AF]">
         {project.description}
       </p>
-      <div className={`mt-5 ${compactOnMobile ? "hidden md:block" : ""}`}>
+      <div className="mt-6 grid grid-cols-1 gap-2.5 sm:flex sm:flex-wrap">
         <SafeLink
           href={project.donation_url}
-          className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:bg-emerald-500 dark:text-emerald-950 dark:hover:bg-emerald-300 dark:focus:ring-offset-slate-950 sm:w-auto"
-          disabledClassName="inline-flex min-h-11 w-full cursor-not-allowed items-center justify-center rounded-md bg-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-400 sm:w-auto"
+          className="inline-flex min-h-10 w-full items-center justify-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:bg-emerald-500 dark:text-emerald-950 dark:hover:bg-emerald-300 dark:focus:ring-offset-slate-950 sm:w-auto"
+          disabledClassName="inline-flex min-h-10 w-full cursor-not-allowed items-center justify-center rounded-md bg-slate-300 px-4 text-sm font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-400 sm:w-auto"
           invalidLabel={common.labels.invalidDonationLink}
         >
           {common.buttons.donate}
         </SafeLink>
+
+        {onToggle ? (
+          <button
+            type="button"
+            onClick={() => onToggle(project.id)}
+            className={`inline-flex min-h-10 w-full items-center justify-center rounded-md px-4 text-sm font-semibold transition sm:w-auto ${
+              selected
+                ? "bg-emerald-700 text-white hover:bg-emerald-800 dark:bg-emerald-400 dark:text-emerald-950 dark:hover:bg-emerald-300"
+                : "border border-emerald-700/45 bg-white text-emerald-800 hover:bg-emerald-50 dark:border-emerald-300/45 dark:bg-white/5 dark:text-emerald-100 dark:hover:bg-white/12"
+            }`}
+          >
+            {selected ? "✓ Seçildi" : "+ Karşılaştır"}
+          </button>
+        ) : null}
       </div>
     </article>
   );

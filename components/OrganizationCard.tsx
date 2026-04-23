@@ -8,7 +8,7 @@ type OrganizationCardProps = {
 
 export function OrganizationCard({ organization }: OrganizationCardProps) {
   return (
-    <article className="flex h-full flex-col rounded-lg border border-emerald-900/10 bg-white/85 p-5 transition hover:border-emerald-300 dark:border-white/10 dark:bg-white/[0.06] dark:hover:border-emerald-700">
+    <article className="flex h-full flex-col rounded-xl border border-slate-200/70 bg-slate-50/80 p-5 transition hover:bg-white dark:border-white/10 dark:bg-white/[0.03] dark:hover:bg-white/[0.06]">
       <div>
         <h2 className="text-xl font-semibold text-emerald-950 dark:text-emerald-50">
           {organization.name}
