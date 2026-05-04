@@ -1,7 +1,7 @@
-import fs from "node:fs";
-import path from "node:path";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 export type OrganizationCatalogItem = {
+  id: number;
   name: string;
   slug: string;
   shortDescription: string;
@@ -15,77 +15,104 @@ export type OrganizationCatalogItem = {
   trustScore?: number;
   countryCount?: number;
   focusArea?: string;
+  territories?: string[];
 };
 
-const csvPath = path.join(process.cwd(), "data", "framer_stk_koleksiyonu.csv");
+type GetOrganizationCatalogOptions = {
+  isFiltering?: boolean;
+};
 
-function parseLine(line: string) {
-  const values: string[] = [];
-  let current = "";
-  let inQuotes = false;
+type NgoRow = {
+  id: number;
+  name: string;
+  slug?: string | null;
+  short_description?: string | null;
+  description?: string | null;
+  website?: string | null;
+  donation_url?: string | null;
+  logo_url?: string | null;
+  category?: string | null;
+  public_benefit?: string | null;
+  sectors?: string | null;
+  founded_year?: string | number | null;
+  trust_score?: number | null;
+  country_count?: number | null;
+  focus_area?: string | null;
+  ngo_bolge?: Array<{ bolge: { id: number; name: string } | { id: number; name: string }[] | null }> | null;
+};
 
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-
-    if (char === '"') {
-      const nextChar = line[index + 1];
-      if (inQuotes && nextChar === '"') {
-        current += '"';
-        index += 1;
-      } else {
-        inQuotes = !inQuotes;
-      }
-      continue;
-    }
-
-    if (char === "," && !inQuotes) {
-      values.push(current.trim());
-      current = "";
-      continue;
-    }
-
-    current += char;
-  }
-
-  values.push(current.trim());
-
-  return values;
+function extractRegionName(
+  bolge: { id: number; name: string } | { id: number; name: string }[] | null | undefined,
+) {
+  if (!bolge) return null;
+  if (Array.isArray(bolge)) return bolge[0]?.name ?? null;
+  return bolge.name;
 }
 
-export function getOrganizationCatalog() {
-  const raw = fs.readFileSync(csvPath, "utf8").replace(/^\uFEFF/, "").trim();
-  const lines = raw.split(/\r?\n/).filter(Boolean);
-
-  if (lines.length <= 1) {
-    return [] as OrganizationCatalogItem[];
-  }
-
-  const headers = parseLine(lines[0]);
-
-  return lines.slice(1).map((line) => {
-    const row = parseLine(line);
-    const record = Object.fromEntries(
-      headers.map((header, idx) => [header, row[idx] ?? ""]),
-    );
-
-    return {
-      name: record.name,
-      slug: record.slug,
-      shortDescription: record.kisa_aciklama,
-      website: record.web_sitesi,
-      donationUrl: record.bagis_url,
-      logoUrl: record.logo_url,
-      category: record.katman,
-      publicBenefit: record.kamu_yarari,
-      sectors: record.ana_sektorler,
-      foundedYear: record.kurulis_yili,
-      trustScore: Number(record.guvenskor || 0) || undefined,
-      countryCount: Number(record.yurt_disi_ulke_sayisi || 0) || undefined,
-      focusArea: record.odak_cografya,
-    } satisfies OrganizationCatalogItem;
-  });
+function createSlug(value: string) {
+  return value
+    .toLocaleLowerCase("tr-TR")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
-export function getOrganizationBySlug(slug: string) {
-  return getOrganizationCatalog().find((organization) => organization.slug === slug);
+function mapNgoRow(row: NgoRow): OrganizationCatalogItem {
+  const shortDescription =
+    row.short_description?.trim() || row.description?.trim() || "";
+  const website = row.website?.trim() || "";
+  const donationUrl = row.donation_url?.trim() || website;
+
+  return {
+    id: row.id,
+    name: row.name,
+    slug: (row.slug?.trim() || createSlug(row.name || `ngo-${row.id}`)),
+    shortDescription,
+    website,
+    donationUrl,
+    logoUrl: row.logo_url?.trim() || "",
+    category: row.category ?? undefined,
+    publicBenefit: row.public_benefit ?? undefined,
+    sectors: row.sectors ?? undefined,
+    foundedYear: row.founded_year ? String(row.founded_year) : undefined,
+    trustScore: row.trust_score ?? undefined,
+    countryCount: row.country_count ?? undefined,
+    focusArea: row.focus_area ?? undefined,
+    territories: (row.ngo_bolge ?? [])
+      .map((item) => extractRegionName(item.bolge))
+      .filter((name): name is string => Boolean(name)),
+  };
+}
+
+export async function getOrganizationCatalog(
+  options: GetOrganizationCatalogOptions = {},
+): Promise<OrganizationCatalogItem[]> {
+  const { isFiltering = false } = options;
+  const supabase = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    },
+  );
+  let query = supabase.from("ngo").select("*,ngo_bolge(bolge:bolge_id(id,name))");
+  query = isFiltering
+    ? query.order("id", { ascending: true })
+    : query.order("position", { ascending: true, nullsFirst: false });
+  const { data, error } = await query;
+
+  if (error) {
+    throw new Error(`Failed to fetch ngo: ${error.message}`);
+  }
+
+  return ((data ?? []) as NgoRow[]).map(mapNgoRow);
+}
+
+export async function getOrganizationBySlug(slug: string) {
+  const organizations = await getOrganizationCatalog();
+  return organizations.find((organization) => organization.slug === slug);
 }

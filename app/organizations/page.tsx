@@ -16,8 +16,8 @@ export const metadata = createSeoMetadata({
   url: "/organizations",
 });
 
-export default function OrganizationsPage() {
-  const organizations = getOrganizationCatalog();
+export default async function OrganizationsPage() {
+  const organizations = await getOrganizationCatalog();
 
   return <OrganizationsShowcase organizations={organizations} />;
 }

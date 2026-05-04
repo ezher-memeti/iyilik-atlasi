@@ -1,73 +1,95 @@
-import kurbanData from "@/data/kurban.json";
+import { getProjects, type ProjectListItem } from "@/lib/api/getProjects";
+import type { KurbanProjectWithOrganization, KurbanType } from "@/lib/donationModels";
 
-export type KurbanType =
-  | "yurt-ici"
-  | "yurt-disi"
-  | "vacip"
-  | "adak"
-  | "akika"
-  | "sukur"
-  | "filistin"
-  | "genel";
+function createSlug(value: string) {
+  return value
+    .toLocaleLowerCase("tr-TR")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
 
-export type KurbanProject = {
-  type: KurbanType;
-  title: string;
-  price: number;
-  description: string;
-  donation_url: string;
-};
-
-export type KurbanOrganization = {
-  name: string;
-  slug: string;
-  description: string;
-  founded?: string;
-  projects: KurbanProject[];
-};
-
-export type KurbanProjectWithOrganization = KurbanProject & {
-  organization: {
-    name: string;
-    slug: string;
-  };
-  id: string;
-};
-
-export const organizations = kurbanData.organizations as KurbanOrganization[];
-
-export function getAllProjects() {
-  return organizations.flatMap((organization) =>
-    organization.projects.map((project, projectIndex) => ({
-      ...project,
-      id: `${organization.slug}-${projectIndex}-${project.type}-${project.title}`,
-      organization: {
-        name: organization.name,
-        slug: organization.slug,
-      },
-    })),
+function inferTypeFromProject(project: ProjectListItem): KurbanType {
+  const text = `${project.title} ${project.categories.map((c) => c.name).join(" ")}`.toLocaleLowerCase(
+    "tr-TR",
   );
+
+  if (text.includes("filistin")) return "filistin";
+  if (text.includes("yurt dışı") || text.includes("yurtdışı")) return "yurt-disi";
+  if (text.includes("yurt içi") || text.includes("yurtiçi")) return "yurt-ici";
+  if (text.includes("vacip")) return "vacip";
+  if (text.includes("adak")) return "adak";
+  if (text.includes("akika")) return "akika";
+  if (text.includes("şükür") || text.includes("sukur")) return "sukur";
+  return "genel";
 }
 
-export function getOrganization(slug: string) {
-  return organizations.find((organization) => organization.slug === slug);
+function mapProject(project: ProjectListItem): KurbanProjectWithOrganization {
+  const ngoName = project.ngo?.name ?? "Bilinmeyen Kurum";
+  const ngoId = project.ngo?.id ?? 0;
+
+  return {
+    id: String(project.id),
+    type: inferTypeFromProject(project),
+    title: project.title,
+    price: project.price ?? 0,
+    description: `Kategori: ${project.categories.map((c) => c.name).join(", ") || "Belirtilmedi"}`,
+    region: project.bolge?.name ?? undefined,
+    donation_url: project.donation_url,
+    organization: {
+      id: ngoId,
+      name: ngoName,
+      slug: createSlug(ngoName),
+    },
+    categories: project.categories,
+  };
 }
 
-export function getOrganizationGroups() {
-  const projects = getAllProjects();
-
-  return organizations.map((organization) => ({
-    organization,
-    projects: projects.filter(
-      (project) => project.organization.slug === organization.slug,
-    ),
-  }));
+export async function getAllProjects() {
+  const projects = await getProjects();
+  return projects.map(mapProject);
 }
 
-export function formatPrice(price: number) {
-  return new Intl.NumberFormat("tr-TR", {
-    style: "currency",
-    currency: "TRY",
-    maximumFractionDigits: 0,
-  }).format(price);
+export async function getOrganization(slug: string) {
+  const groups = await getOrganizationGroups();
+  return groups.find((organization) => organization.organization.slug === slug)?.organization;
 }
+
+export async function getOrganizationGroups() {
+  const projects = await getAllProjects();
+  const groupMap = new Map<
+    string,
+    {
+      organization: {
+        id: number;
+        name: string;
+        slug: string;
+        description?: string;
+        founded?: string;
+      };
+      projects: KurbanProjectWithOrganization[];
+    }
+  >();
+
+  projects.forEach((project) => {
+    const existing = groupMap.get(project.organization.slug);
+    if (existing) {
+      existing.projects.push(project);
+      return;
+    }
+
+    groupMap.set(project.organization.slug, {
+      organization: {
+        id: project.organization.id,
+        name: project.organization.name,
+        slug: project.organization.slug,
+      },
+      projects: [project],
+    });
+  });
+
+  return Array.from(groupMap.values());
+}
+
+export { formatPrice } from "@/lib/donationModels";

@@ -4,14 +4,8 @@
 
 :root {
   color-scheme: light;
-  --background: #fafbf9;
-  --foreground: #102019;
-}
-
-.dark {
-  color-scheme: dark;
-  --background: #08130f;
-  --foreground: #eef8f1;
+  --background: #f7f6f2;
+  --foreground: #1a202c;
 }
 
 * {
@@ -51,6 +45,6 @@ a {
 }
 
 ::selection {
-  background: #a7f3d0;
-  color: #064e3b;
+  background: #f59e0b;
+  color: #1a202c;
 }

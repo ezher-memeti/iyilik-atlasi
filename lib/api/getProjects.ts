@@ -1,0 +1,91 @@
+import { createClient } from "@/lib/supabase/server";
+
+export type ProjectListItem = {
+  id: number;
+  title: string;
+  price: number | null;
+  donation_url: string;
+  ngo: {
+    id: number;
+    name: string;
+  } | null;
+  bolge: {
+    id: number;
+    name: string;
+  } | null;
+  categories: Array<{
+    id: number;
+    name: string;
+  }>;
+};
+
+type GetProjectsOptions = {
+  isFiltering?: boolean;
+};
+
+type ProjectQueryRow = {
+  id: number;
+  title: string;
+  price: number | null;
+  donation_url: string;
+  ngo: { id: number; name: string } | null;
+  bolge: { id: number; name: string } | null;
+  project_categories:
+  | Array<{ categories: { id: number; name: string } | null }>
+  | null;
+};
+
+export async function getProjects(options: GetProjectsOptions = {}): Promise<ProjectListItem[]> {
+  const { isFiltering = false } = options;
+  const supabase = await createClient();
+  let query = supabase
+    .from("project")
+    .select(
+      `
+      id,
+      title,
+      price,
+      donation_url,
+      ngo:ngo_id (
+        id,
+        name
+      ),
+      bolge:bolge_id (
+        id,
+        name
+      ),
+      project_categories (
+        categories:category_id (
+          id,
+          name
+        )
+      )
+      `,
+    );
+
+  query = isFiltering
+    ? query.order("id", { ascending: true })
+    : query.order("position", { ascending: true, nullsFirst: false });
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(`Failed to fetch projects: ${error.message}`);
+  }
+
+
+  const rows = (data ?? []) as unknown as ProjectQueryRow[];
+
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    price: row.price,
+    donation_url: row.donation_url,
+    ngo: row.ngo,
+    bolge: row.bolge,
+    categories: (row.project_categories ?? [])
+      .map((joinRow) => joinRow.categories)
+      .filter((category): category is { id: number; name: string } =>
+        Boolean(category),
+      ),
+  }));
+}

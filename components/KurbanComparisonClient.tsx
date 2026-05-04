@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ComparisonTable } from "@/components/ComparisonTable";
 import { ProjectCard } from "@/components/ProjectCard";
 import common from "@/content/common.json";
-import { formatPrice, type KurbanProjectWithOrganization } from "@/lib/kurban";
+import { formatPrice, type KurbanProjectWithOrganization } from "@/lib/donationModels";
 
 type OrganizationGroup = {
   organization: {
@@ -19,6 +19,7 @@ type OrganizationGroup = {
 type KurbanComparisonClientProps = {
   groups: OrganizationGroup[];
   projects: KurbanProjectWithOrganization[];
+  categories: Array<{ id: number; name: string }>;
 };
 
 type SortType = "price" | "popular" | "az";
@@ -27,13 +28,20 @@ const DEFAULT_SEARCH = "";
 const DEFAULT_PRICE_FILTER = "all";
 const DEFAULT_REGION_FILTER = "all";
 const DEFAULT_SORT: SortType = "popular";
+const DEFAULT_CATEGORY = "Kurban";
+
+function normalizeText(value: string) {
+  return value.toLocaleLowerCase("tr-TR");
+}
 
 export function KurbanComparisonClient({
   groups,
   projects,
+  categories,
 }: KurbanComparisonClientProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isCompareOpen, setIsCompareOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(DEFAULT_CATEGORY);
   const [openOrganization, setOpenOrganization] = useState(
     groups[0]?.organization.slug ?? "",
   );
@@ -54,6 +62,28 @@ export function KurbanComparisonClient({
   const [draftRegionFilter, setDraftRegionFilter] = useState(DEFAULT_REGION_FILTER);
   const [draftSortBy, setDraftSortBy] = useState<SortType>(DEFAULT_SORT);
 
+  const categoryTabs = useMemo(() => {
+    const fetched = categories.length
+      ? categories.map((category) => category.name)
+      : [DEFAULT_CATEGORY];
+
+    if (!fetched.some((name) => normalizeText(name) === normalizeText(DEFAULT_CATEGORY))) {
+      return [DEFAULT_CATEGORY, ...fetched];
+    }
+
+    return fetched;
+  }, [categories]);
+
+  useEffect(() => {
+    const exists = categoryTabs.some(
+      (tab) => normalizeText(tab) === normalizeText(selectedCategory),
+    );
+
+    if (!exists && categoryTabs.length > 0) {
+      setSelectedCategory(categoryTabs[0]);
+    }
+  }, [categoryTabs, selectedCategory]);
+
   const selectedProjects = useMemo(
     () => projects.filter((project) => selectedIds.includes(project.id)),
     [projects, selectedIds],
@@ -73,10 +103,38 @@ export function KurbanComparisonClient({
 
   const filteredGroups = useMemo(() => {
     const query = search.trim().toLocaleLowerCase("tr-TR");
+    const selectedCategoryNormalized = normalizeText(selectedCategory);
 
     return groups
       .map((group) => {
         const filteredProjects = group.projects
+          .filter((project) => {
+            const categoryNames = project.categories.map((category) =>
+              normalizeText(category.name),
+            );
+            const normalizedTitle = normalizeText(project.title);
+            const normalizedDescription = normalizeText(project.description);
+
+            if (selectedCategoryNormalized === normalizeText(DEFAULT_CATEGORY)) {
+              if (categoryNames.length === 0) {
+                return true;
+              }
+              return (
+                categoryNames.some((name) => name.includes("kurban")) ||
+                normalizedTitle.includes("kurban") ||
+                normalizedDescription.includes("kurban")
+              );
+            }
+
+            if (categoryNames.length === 0) {
+              return (
+                normalizedTitle.includes(selectedCategoryNormalized) ||
+                normalizedDescription.includes(selectedCategoryNormalized)
+              );
+            }
+
+            return categoryNames.some((name) => name.includes(selectedCategoryNormalized));
+          })
           .filter((project) => {
             if (!query) {
               return true;
@@ -148,7 +206,7 @@ export function KurbanComparisonClient({
         };
       })
       .filter((group) => group.projects.length > 0);
-  }, [groups, priceFilter, regionFilter, search, sortBy]);
+  }, [groups, priceFilter, regionFilter, search, selectedCategory, sortBy]);
 
   const activeFilterSummary = useMemo(() => {
     const parts: string[] = [];
@@ -280,94 +338,136 @@ export function KurbanComparisonClient({
     setSortBy(DEFAULT_SORT);
   }
 
+  function handleCategoryChange(category: string) {
+    if (category === selectedCategory) return;
+    setSelectedCategory(category);
+    setSearch(DEFAULT_SEARCH);
+    setPriceFilter(DEFAULT_PRICE_FILTER);
+    setRegionFilter(DEFAULT_REGION_FILTER);
+    setSortBy(DEFAULT_SORT);
+    setDraftSearch(DEFAULT_SEARCH);
+    setDraftPriceFilter(DEFAULT_PRICE_FILTER);
+    setDraftRegionFilter(DEFAULT_REGION_FILTER);
+    setDraftSortBy(DEFAULT_SORT);
+  }
+
   return (
     <>
-      <section className="hidden md:sticky md:top-[68px] md:z-30 md:block md:rounded-xl md:border md:border-black/8 md:bg-[#F2F7F3]/92 md:p-4 md:backdrop-blur-md dark:md:border-white/10 dark:md:bg-white/5">
-        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-[#6B7280] dark:text-[#9CA3AF]">
-              Ara
-            </span>
-            <input
-              type="text"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Kurum veya proje ara…"
-              className="h-10 w-full rounded-md bg-[#EAF1EC] px-3 text-sm text-[#1F2937] outline-none transition focus:border-emerald-500 dark:border-white/12 dark:bg-[#0C1512] dark:text-[#E5E7EB]"
-            />
-          </label>
+      <section className="rounded-2xl border border-divider-softLight bg-white/80 p-4 backdrop-blur-sm sm:p-6">
+        <div className="overflow-x-auto border-b border-divider-softLight pb-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex w-max min-w-full gap-6 pr-8 sm:gap-8">
+            {categoryTabs.map((tab) => {
+              const isActive = tab === selectedCategory;
+              return (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => handleCategoryChange(tab)}
+                  className={`-mb-px border-b-2 px-1 py-3 text-sm font-semibold transition-colors duration-200 ${
+                    isActive
+                      ? "border-brand-primary text-brand-primary"
+                      : "border-transparent text-text-secondary hover:text-text-primary"
+                  }`}
+                >
+                  {tab}
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-[#6B7280] dark:text-[#9CA3AF]">
-              Fiyat
-            </span>
-            <select
-              value={priceFilter}
-              onChange={(event) => setPriceFilter(event.target.value)}
-              className="h-10 w-full rounded-md bg-[#EAF1EC] px-3 text-sm text-[#1F2937] outline-none transition focus:border-emerald-500 dark:border-white/12 dark:bg-[#0C1512] dark:text-[#E5E7EB]"
+        <div className="mt-4 hidden md:block">
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-text-secondary">
+                Ara
+              </span>
+              <input
+                type="text"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Kurum veya proje ara…"
+                className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm text-text-primary outline-none transition focus:border-brand-primary"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-text-secondary">
+                Fiyat
+              </span>
+              <select
+                value={priceFilter}
+                onChange={(event) => setPriceFilter(event.target.value)}
+                className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm text-text-primary outline-none transition focus:border-brand-primary"
+              >
+                <option value="all">Tüm fiyatlar</option>
+                <option value="0-7000">₺0 – ₺7.000</option>
+                <option value="7000-12000">₺7.001 – ₺12.000</option>
+                <option value="12000+">₺12.000+</option>
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-text-secondary">
+                Bölge
+              </span>
+              <select
+                value={regionFilter}
+                onChange={(event) => setRegionFilter(event.target.value)}
+                className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm text-text-primary outline-none transition focus:border-brand-primary"
+              >
+                <option value="all">Tümü</option>
+                <option value="yurt-ici">Yurt içi</option>
+                <option value="yurt-disi">Yurt dışı</option>
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-text-secondary">
+                Sırala
+              </span>
+              <select
+                value={sortBy}
+                onChange={(event) => setSortBy(event.target.value as SortType)}
+                className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm text-text-primary outline-none transition focus:border-brand-primary"
+              >
+                <option value="price">En uygun fiyat</option>
+                <option value="popular">En popüler</option>
+                <option value="az">A–Z</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div className="mt-4 md:hidden">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => openMobileSheet("filter")}
+              className="inline-flex min-h-10 flex-1 items-center justify-center rounded-md border border-divider-softLight bg-surface-categoryLight px-4 text-sm font-semibold text-text-primary"
             >
-              <option value="all">Tüm fiyatlar</option>
-              <option value="0-7000">₺0 – ₺7.000</option>
-              <option value="7000-12000">₺7.001 – ₺12.000</option>
-              <option value="12000+">₺12.000+</option>
-            </select>
-          </label>
-
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-[#6B7280] dark:text-[#9CA3AF]">
-              Bölge
-            </span>
-            <select
-              value={regionFilter}
-              onChange={(event) => setRegionFilter(event.target.value)}
-              className="h-10 w-full rounded-md bg-[#EAF1EC] px-3 text-sm text-[#1F2937] outline-none transition focus:border-emerald-500 dark:border-white/12 dark:bg-[#0C1512] dark:text-[#E5E7EB]"
+              Filtrele
+            </button>
+            <button
+              type="button"
+              onClick={() => openMobileSheet("sort")}
+              className="inline-flex min-h-10 flex-1 items-center justify-center rounded-md border border-divider-softLight bg-surface-categoryLight px-4 text-sm font-semibold text-text-primary"
             >
-              <option value="all">Tümü</option>
-              <option value="yurt-ici">Yurt içi</option>
-              <option value="yurt-disi">Yurt dışı</option>
-            </select>
-          </label>
-
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-[#6B7280] dark:text-[#9CA3AF]">
               Sırala
-            </span>
-            <select
-              value={sortBy}
-              onChange={(event) => setSortBy(event.target.value as SortType)}
-              className="h-10 w-full rounded-md bg-[#EAF1EC] px-3 text-sm text-[#1F2937] outline-none transition focus:border-emerald-500 dark:border-white/12 dark:bg-[#0C1512] dark:text-[#E5E7EB]"
-            >
-              <option value="price">En uygun fiyat</option>
-              <option value="popular">En popüler</option>
-              <option value="az">A–Z</option>
-            </select>
-          </label>
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-text-secondary">
+            {activeFilterSummary}
+          </p>
         </div>
       </section>
 
-      <section className="md:hidden">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => openMobileSheet("filter")}
-            className="inline-flex min-h-10 flex-1 items-center justify-center rounded-md border border-black/8 bg-[#F2F7F3] px-4 text-sm font-semibold text-[#1F2937] dark:border-white/12 dark:bg-[#0F1A17] dark:text-[#E5E7EB]"
-          >
-            Filtrele
-          </button>
-          <button
-            type="button"
-            onClick={() => openMobileSheet("sort")}
-            className="inline-flex min-h-10 flex-1 items-center justify-center rounded-md border border-black/8 bg-[#F2F7F3] px-4 text-sm font-semibold text-[#1F2937] dark:border-white/12 dark:bg-[#0F1A17] dark:text-[#E5E7EB]"
-          >
-            Sırala
-          </button>
-        </div>
-        <p className="mt-2 text-xs text-[#6B7280] dark:text-[#9CA3AF]">
-          {activeFilterSummary}
-        </p>
-      </section>
-
-      <section className="mt-5 space-y-3 sm:space-y-4">
+      <section className="mt-8 space-y-3 sm:space-y-4">
+        {filteredGroups.length === 0 ? (
+          <div className="rounded-lg border border-divider-softLight bg-surface-pageLight/70 px-4 py-8 text-center text-sm text-text-secondary">
+            Seçilen kategori için uygun bağış seçeneği bulunamadı.
+          </div>
+        ) : null}
         {filteredGroups.map((group, index) => {
           const isOpen = openOrganization === group.organization.slug;
           const selectedCount = selectedCountByOrg[group.organization.slug] ?? 0;
@@ -378,7 +478,7 @@ export function KurbanComparisonClient({
           return (
             <section
               key={group.organization.slug}
-              className={`rounded-xl px-2 py-1 transition-colors ${isOpen ? "bg-black/[0.02] dark:bg-white/5" : "bg-transparent"
+              className={`rounded-xl px-2 py-1 transition-colors ${isOpen ? "bg-surface-categoryLight/50" : "bg-transparent"
                 }`}
             >
               <button
@@ -393,22 +493,22 @@ export function KurbanComparisonClient({
                   isOpen ? common.labels.collapseOrganization : common.labels.expandOrganization
                 }
                 className={`flex w-full cursor-pointer items-center justify-between gap-3 rounded-lg px-3 py-3 text-left transition-colors duration-200 ${isOpen
-                  ? "bg-black/[0.03] dark:bg-white/[0.07]"
-                  : "hover:bg-black/[0.03] dark:hover:bg-white/[0.06]"
+                  ? "bg-surface-pageLight"
+                  : "hover:bg-surface-pageLight"
                   }`}
               >
                 <div>
-                  <h2 className="text-lg font-semibold text-[#1F2937] dark:text-[#E5E7EB] sm:text-xl">
+                  <h2 className="text-lg font-semibold text-text-primary sm:text-xl">
                     {group.organization.name}
                   </h2>
-                  <p className="mt-1 text-xs text-[#6B7280] dark:text-[#9CA3AF] sm:text-sm">
+                  <p className="mt-1 text-xs text-text-secondary sm:text-sm">
                     {group.projects.length} {common.labels.optionCountSuffix}
                     {pricePreview ? ` · ${pricePreview}` : ""}
                     {selectedCount > 0 ? ` · ${selectedCount} seçildi` : ""}
                   </p>
                 </div>
                 <span
-                  className={`inline-flex h-8 w-8 items-center justify-center rounded-md text-[#6B7280] transition-transform duration-300 dark:text-[#9CA3AF] ${isOpen ? "rotate-180" : "rotate-0"
+                  className={`inline-flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-transform duration-300 ${isOpen ? "rotate-180" : "rotate-0"
                     }`}
                 >
                   <ChevronIcon />
@@ -436,7 +536,7 @@ export function KurbanComparisonClient({
                     <button
                       type="button"
                       onClick={() => toggleExpand(group.organization.slug)}
-                      className="mb-3 inline-flex items-center text-sm font-semibold text-emerald-700 transition hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
+                      className="mb-3 inline-flex items-center text-sm font-semibold text-brand-primary transition hover:text-brand-secondary"
                     >
                       {isExpanded ? "Daha az göster" : "+ Daha fazla göster"}
                     </button>
@@ -445,7 +545,7 @@ export function KurbanComparisonClient({
               </div>
 
               {index < filteredGroups.length - 1 ? (
-                <div className="mx-2 mt-2 border-b-2 border-black/10 dark:border-white/20" />
+                <div className="mx-2 mt-2 border-b border-divider-softLight" />
               ) : null}
             </section>
           );
@@ -453,22 +553,22 @@ export function KurbanComparisonClient({
       </section>
 
       {selectedProjects.length > 0 ? (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-black/5 bg-white/90 px-4 py-3 shadow-[0_-10px_28px_rgba(15,23,42,0.12)] backdrop-blur-md dark:border-white/10 dark:bg-white/5 dark:shadow-[0_-10px_24px_rgba(0,0,0,0.35)]">
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-divider-softLight bg-surface-pageLight/95 px-4 py-3 shadow-[0_-10px_28px_rgba(15,23,42,0.12)] backdrop-blur-md">
           <div className="mx-auto flex w-full max-w-6xl items-center gap-3">
-            <p className="min-w-0 flex-1 text-sm font-semibold text-[#1F2937] dark:text-[#E5E7EB]">
+            <p className="min-w-0 flex-1 text-sm font-semibold text-text-primary">
               {selectedProjects.length} proje seçildi
             </p>
             <button
               type="button"
               onClick={() => setIsCompareOpen(true)}
-              className="inline-flex min-h-10 items-center justify-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 dark:bg-emerald-500 dark:text-emerald-950 dark:hover:bg-emerald-300"
+              className="inline-flex min-h-10 items-center justify-center rounded-md bg-brand-primary px-4 text-sm font-semibold text-white transition hover:bg-brand-secondary"
             >
               Karşılaştır
             </button>
             <button
               type="button"
               onClick={clearSelection}
-              className="inline-flex min-h-10 items-center justify-center rounded-md border border-black/10 bg-white px-4 text-sm font-semibold text-[#6B7280] transition hover:text-[#1F2937] dark:border-white/15 dark:bg-white/10 dark:text-[#E5E7EB] dark:hover:bg-white/15 dark:hover:text-white"
+              className="inline-flex min-h-10 items-center justify-center rounded-md border border-divider-softLight bg-surface-pageLight px-4 text-sm font-semibold text-text-secondary transition hover:text-text-primary"
             >
               {common.buttons.clear}
             </button>
@@ -478,15 +578,15 @@ export function KurbanComparisonClient({
 
       {isCompareOpen ? (
         <div className="fixed inset-0 z-50 bg-black/45 p-4 backdrop-blur-sm">
-          <div className="mx-auto flex h-full w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-[#FAFBF9] shadow-2xl dark:bg-[#0F1A17] dark:ring-1 dark:ring-white/10">
-            <div className="flex items-center justify-between border-b border-black/5 px-5 py-4 dark:border-white/10">
-              <h3 className="text-base font-semibold text-[#1F2937] dark:text-[#E5E7EB]">
+          <div className="mx-auto flex h-full w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-surface-pageLight shadow-2xl">
+            <div className="flex items-center justify-between border-b border-divider-softLight px-5 py-4">
+              <h3 className="text-base font-semibold text-text-primary">
                 Seçilen Projeler Karşılaştırması
               </h3>
               <button
                 type="button"
                 onClick={() => setIsCompareOpen(false)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[#6B7280] transition hover:bg-black/5 hover:text-[#1F2937] dark:text-[#9CA3AF] dark:hover:bg-white/10 dark:hover:text-[#E5E7EB]"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md text-text-secondary transition hover:bg-surface-categoryLight hover:text-text-primary"
                 aria-label={common.buttons.close}
               >
                 ×
@@ -502,17 +602,17 @@ export function KurbanComparisonClient({
       {isMobileFilterOpen ? (
         <div className="fixed inset-0 z-50 bg-black/45 md:hidden" role="dialog" aria-modal="true">
           <div
-            className="absolute inset-x-0 bottom-0 rounded-t-2xl bg-[#F2F7F3] p-4 shadow-2xl dark:bg-[#12201C] dark:ring-1 dark:ring-white/12"
+            className="absolute inset-x-0 bottom-0 rounded-t-2xl bg-surface-categoryLight p-4 shadow-2xl"
             style={{ maxHeight: "82vh", overflowY: "auto" }}
           >
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-[#1F2937] dark:text-[#E5E7EB]">
+              <h3 className="text-base font-semibold text-text-primary">
                 {mobileSheetMode === "filter" ? "Filtrele" : "Sırala"}
               </h3>
               <button
                 type="button"
                 onClick={() => setIsMobileFilterOpen(false)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[#6B7280] dark:text-[#9CA3AF]"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md text-text-secondary"
                 aria-label={common.buttons.close}
               >
                 ×
@@ -521,7 +621,7 @@ export function KurbanComparisonClient({
 
             <div className="space-y-3">
               <label className="block">
-                <span className="mb-1 block text-xs font-medium text-[#6B7280] dark:text-[#9CA3AF]">
+                <span className="mb-1 block text-xs font-medium text-text-secondary">
                   Ara
                 </span>
                 <input
@@ -529,18 +629,18 @@ export function KurbanComparisonClient({
                   value={draftSearch}
                   onChange={(event) => setDraftSearch(event.target.value)}
                   placeholder="Kurum veya proje ara…"
-                  className="h-10 w-full rounded-md border border-black/8 bg-[#EAF1EC] px-3 text-sm text-[#1F2937] outline-none transition focus:border-emerald-500 dark:border-white/12 dark:bg-[#0C1512] dark:text-[#E5E7EB]"
+                  className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm text-text-primary outline-none transition focus:border-brand-primary"
                 />
               </label>
 
               <label className="block">
-                <span className="mb-1 block text-xs font-medium text-[#6B7280] dark:text-[#9CA3AF]">
+                <span className="mb-1 block text-xs font-medium text-text-secondary">
                   Fiyat
                 </span>
                 <select
                   value={draftPriceFilter}
                   onChange={(event) => setDraftPriceFilter(event.target.value)}
-                  className="h-10 w-full rounded-md border border-black/8 bg-[#EAF1EC] px-3 text-sm text-[#1F2937] outline-none transition focus:border-emerald-500 dark:border-white/12 dark:bg-[#0C1512] dark:text-[#E5E7EB]"
+                  className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm text-text-primary outline-none transition focus:border-brand-primary"
                 >
                   <option value="all">Tüm fiyatlar</option>
                   <option value="0-7000">₺0 – ₺7.000</option>
@@ -550,13 +650,13 @@ export function KurbanComparisonClient({
               </label>
 
               <label className="block">
-                <span className="mb-1 block text-xs font-medium text-[#6B7280] dark:text-[#9CA3AF]">
+                <span className="mb-1 block text-xs font-medium text-text-secondary">
                   Bölge
                 </span>
                 <select
                   value={draftRegionFilter}
                   onChange={(event) => setDraftRegionFilter(event.target.value)}
-                  className="h-10 w-full rounded-md border border-black/8 bg-[#EAF1EC] px-3 text-sm text-[#1F2937] outline-none transition focus:border-emerald-500 dark:border-white/12 dark:bg-[#0C1512] dark:text-[#E5E7EB]"
+                  className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm text-text-primary outline-none transition focus:border-brand-primary"
                 >
                   <option value="all">Tümü</option>
                   <option value="yurt-ici">Yurt içi</option>
@@ -565,13 +665,13 @@ export function KurbanComparisonClient({
               </label>
 
               <label className="block">
-                <span className="mb-1 block text-xs font-medium text-[#6B7280] dark:text-[#9CA3AF]">
+                <span className="mb-1 block text-xs font-medium text-text-secondary">
                   Sırala
                 </span>
                 <select
                   value={draftSortBy}
                   onChange={(event) => setDraftSortBy(event.target.value as SortType)}
-                  className="h-10 w-full rounded-md border border-black/8 bg-[#EAF1EC] px-3 text-sm text-[#1F2937] outline-none transition focus:border-emerald-500 dark:border-white/12 dark:bg-[#0C1512] dark:text-[#E5E7EB]"
+                  className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm text-text-primary outline-none transition focus:border-brand-primary"
                 >
                   <option value="price">En uygun fiyat</option>
                   <option value="popular">En popüler</option>
@@ -584,14 +684,14 @@ export function KurbanComparisonClient({
               <button
                 type="button"
                 onClick={clearMobileFilters}
-                className="inline-flex min-h-10 flex-1 items-center justify-center rounded-md border border-black/8 bg-[#EAF1EC] px-4 text-sm font-semibold text-[#6B7280] dark:border-white/12 dark:bg-[#0C1512] dark:text-[#E5E7EB]"
+                className="inline-flex min-h-10 flex-1 items-center justify-center rounded-md border border-divider-softLight bg-surface-pageLight px-4 text-sm font-semibold text-text-secondary"
               >
                 Temizle
               </button>
               <button
                 type="button"
                 onClick={applyMobileFilters}
-                className="inline-flex min-h-10 flex-1 items-center justify-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white dark:bg-emerald-500 dark:text-emerald-950"
+                className="inline-flex min-h-10 flex-1 items-center justify-center rounded-md bg-brand-primary px-4 text-sm font-semibold text-white"
               >
                 Uygula
               </button>

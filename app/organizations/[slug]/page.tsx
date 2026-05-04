@@ -15,15 +15,16 @@ type OrganizationPageProps = {
   }>;
 };
 
-export function generateStaticParams() {
-  return getOrganizationCatalog().map((organization) => ({
+export async function generateStaticParams() {
+  const organizations = await getOrganizationCatalog();
+  return organizations.map((organization) => ({
     slug: organization.slug,
   }));
 }
 
 export async function generateMetadata({ params }: OrganizationPageProps) {
   const { slug } = await params;
-  const organization = getOrganizationBySlug(slug);
+  const organization = await getOrganizationBySlug(slug);
 
   if (!organization) {
     return {};
@@ -51,33 +52,39 @@ function normalizeCategory(category?: string) {
   return category.includes("-") ? category.split("-")[1]?.trim() : category;
 }
 
-function trustLevel(score?: number) {
-  if (!score) {
-    return "Belirtilmedi";
+function formatTerritories(territories?: string[], fallback?: string) {
+  if (territories && territories.length > 0) {
+    return territories.join(", ");
   }
-
-  if (score >= 5) {
-    return "Yüksek";
-  }
-
-  if (score >= 4) {
-    return "İyi";
-  }
-
-  return "Orta";
+  return fallback || "Belirtilmedi";
 }
 
 export default async function OrganizationProfilePage({
   params,
 }: OrganizationPageProps) {
   const { slug } = await params;
-  const organization = getOrganizationBySlug(slug);
+  const organization = await getOrganizationBySlug(slug);
 
   if (!organization) {
     notFound();
   }
 
-  const projects = getKurbanProjectsForOrganization(organization);
+  const projects = await getKurbanProjectsForOrganization(organization);
+  const projectCategories = Array.from(
+    new Set(
+      projects
+        .flatMap((project) => project.categories)
+        .map((name) => name.trim())
+        .filter(Boolean),
+    ),
+  );
+  const projectTerritories = Array.from(
+    new Set(
+      projects
+        .map((project) => project.region?.trim())
+        .filter((region): region is string => Boolean(region)),
+    ),
+  );
 
   const organizationSchema = {
     "@context": "https://schema.org",
@@ -90,12 +97,12 @@ export default async function OrganizationProfilePage({
   };
 
   return (
-    <main className="bg-[#FAFBF9] pb-24 pt-8 text-[#1F2937] dark:bg-[#0B1210] dark:text-[#E5E7EB]">
+    <main className="bg-[#FAFBF9] pb-24 pt-8 text-[#1F2937]">
       <StructuredData data={organizationSchema} />
 
       <div className="mx-auto w-full max-w-[1160px] space-y-16 px-4 sm:px-6 lg:px-8">
-        <section className="rounded-3xl bg-[radial-gradient(circle_at_25%_0%,rgba(16,185,129,0.15),transparent_46%),linear-gradient(135deg,#ffffff_0%,#f5faf7_100%)] px-6 py-10 sm:px-10 sm:py-12 dark:bg-[radial-gradient(circle_at_25%_0%,rgba(52,211,153,0.16),transparent_48%),linear-gradient(135deg,#10201B_0%,#0B1210_100%)]">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-300">
+        <section className="rounded-3xl bg-[radial-gradient(circle_at_25%_0%,rgba(16,185,129,0.15),transparent_46%),linear-gradient(135deg,#ffffff_0%,#f5faf7_100%)] px-6 py-10 sm:px-10 sm:py-12">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">
             Kurum Profili
           </p>
 
@@ -104,15 +111,14 @@ export default async function OrganizationProfilePage({
               <NgoLogo name={organization.name} logoUrl={organization.logoUrl} className="h-14 w-14" />
 
               <div>
-                <h1 className="text-3xl font-semibold tracking-tight text-[#1F2937] sm:text-4xl dark:text-[#E5E7EB]">
+                <h1 className="text-3xl font-semibold tracking-tight text-[#1F2937] sm:text-4xl">
                   {organization.name}
                 </h1>
-                <p className="mt-3 max-w-2xl text-sm leading-7 text-[#6B7280] dark:text-[#9CA3AF]">
+                <p className="mt-3 max-w-2xl text-sm leading-7 text-[#6B7280]">
                   {organization.shortDescription}
                 </p>
-                <p className="mt-3 text-xs font-medium text-[#6B7280] dark:text-[#9CA3AF]">
-                  Kuruluş: {organization.foundedYear || "Belirtilmedi"} · Kategori: {" "}
-                  {normalizeCategory(organization.category)}
+                <p className="mt-3 text-xs font-medium text-[#6B7280]">
+                  Kategori: {normalizeCategory(organization.category)}
                 </p>
               </div>
             </div>
@@ -122,7 +128,7 @@ export default async function OrganizationProfilePage({
                 href={organization.donationUrl || organization.website}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex min-h-11 items-center justify-center rounded-md bg-emerald-700 px-5 text-sm font-semibold text-white transition hover:bg-emerald-800 dark:bg-emerald-500 dark:text-emerald-950 dark:hover:bg-emerald-300"
+                className="inline-flex min-h-11 items-center justify-center rounded-md bg-emerald-700 px-5 text-sm font-semibold text-white transition hover:bg-emerald-800"
               >
                 Bağış Yap →
               </a>
@@ -130,11 +136,11 @@ export default async function OrganizationProfilePage({
                 href={organization.website}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex min-h-11 items-center justify-center rounded-md border border-emerald-700/35 bg-white/80 px-5 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-50/50 dark:border-emerald-300/35 dark:bg-white/5 dark:text-emerald-100 dark:hover:bg-white/10"
+                className="inline-flex min-h-11 items-center justify-center rounded-md border border-emerald-700/35 bg-white/80 px-5 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-50/50"
               >
                 Resmi Siteye Git
               </a>
-              <p className="text-xs text-[#6B7280] dark:text-[#9CA3AF]">
+              <p className="text-xs text-[#6B7280]">
                 Dış bağlantıya yönlendirilirsiniz.
               </p>
             </div>
@@ -142,10 +148,10 @@ export default async function OrganizationProfilePage({
         </section>
 
         <section>
-          <h2 className="text-2xl font-semibold tracking-tight text-[#1F2937] dark:text-[#E5E7EB]">
+          <h2 className="text-2xl font-semibold tracking-tight text-[#1F2937]">
             Genel Bakış
           </h2>
-          <p className="mt-4 max-w-3xl text-base leading-8 text-[#6B7280] dark:text-[#9CA3AF]">
+          <p className="mt-4 max-w-3xl text-base leading-8 text-[#6B7280]">
             {organization.shortDescription}. Kurumun faaliyet alanlarını ve hizmet
             bölgelerini inceleyerek bağış tercihinizi daha güvenli bir şekilde
             şekillendirebilirsiniz.
@@ -153,39 +159,27 @@ export default async function OrganizationProfilePage({
         </section>
 
         <section className="grid gap-6 md:grid-cols-3">
-          <InfoItem label="Kuruluş yılı" value={organization.foundedYear || "Belirtilmedi"} />
           <InfoItem
             label="Faaliyet alanı"
-            value={organization.sectors?.split("·").slice(0, 2).join(" · ") || "Belirtilmedi"}
+            value={
+              projectCategories.length > 0
+                ? projectCategories.join(", ")
+                : "Belirtilmedi"
+            }
           />
           <InfoItem
             label="Hizmet bölgeleri"
-            value={organization.focusArea || "Belirtilmedi"}
+            value={formatTerritories(projectTerritories, organization.focusArea)}
           />
-        </section>
-
-        <section>
-          <h2 className="text-2xl font-semibold tracking-tight text-[#1F2937] dark:text-[#E5E7EB]">
-            Güven ve Şeffaflık
-          </h2>
-          <div className="mt-5 flex flex-wrap gap-3">
-            <Badge label={`Güven seviyesi: ${trustLevel(organization.trustScore)}`} />
-            {organization.trustScore ? (
-              <Badge label={`Güven skoru: ${organization.trustScore}/5`} />
-            ) : null}
-            {organization.publicBenefit ? (
-              <Badge label={`Kamu yararı: ${organization.publicBenefit}`} />
-            ) : null}
-          </div>
         </section>
 
         <section>
           <div className="flex items-end justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-300">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">
                 Bağış Projeleri
               </p>
-              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[#1F2937] dark:text-[#E5E7EB]">
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[#1F2937]">
                 Kurban Bağış Seçenekleri
               </h2>
             </div>
@@ -196,16 +190,16 @@ export default async function OrganizationProfilePage({
               {projects.map((project) => (
                 <article
                   key={`${organization.slug}-${project.name}`}
-                  className="flex h-full flex-col rounded-2xl bg-white p-5 shadow-sm dark:bg-white/5 dark:ring-1 dark:ring-white/10"
+                  className="flex h-full flex-col rounded-2xl bg-white p-5 shadow-sm"
                 >
-                  <h3 className="text-lg font-semibold text-[#1F2937] dark:text-[#E5E7EB]">
+                  <h3 className="text-lg font-semibold text-[#1F2937]">
                     {project.name}
                   </h3>
-                  <p className="mt-3 text-sm leading-7 text-[#6B7280] dark:text-[#9CA3AF]">
+                  <p className="mt-3 text-sm leading-7 text-[#6B7280]">
                     {project.description}
                   </p>
 
-                  <div className="mt-4 space-y-1 text-sm text-[#6B7280] dark:text-[#9CA3AF]">
+                  <div className="mt-4 space-y-1 text-sm text-[#6B7280]">
                     {project.price ? <p>Fiyat: {formatPrice(project.price)}</p> : null}
                     {project.region ? <p>Bölge: {project.region}</p> : null}
                   </div>
@@ -214,7 +208,7 @@ export default async function OrganizationProfilePage({
                     href={project.donationUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-6 inline-flex items-center text-sm font-semibold text-emerald-700 transition hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
+                    className="mt-6 inline-flex items-center text-sm font-semibold text-emerald-700 transition hover:text-emerald-800"
                   >
                     Bağış Yap →
                   </a>
@@ -222,15 +216,15 @@ export default async function OrganizationProfilePage({
               ))}
             </div>
           ) : (
-            <p className="mt-6 text-sm text-[#6B7280] dark:text-[#9CA3AF]">
+            <p className="mt-6 text-sm text-[#6B7280]">
               Bu kurum için kurban bağış projesi bilgisi şu anda listelenmiyor.
             </p>
           )}
         </section>
 
         <section>
-          <details className="rounded-xl bg-white/70 p-4 text-sm text-[#6B7280] shadow-sm dark:bg-white/5 dark:text-[#9CA3AF] dark:ring-1 dark:ring-white/10">
-            <summary className="cursor-pointer font-semibold text-[#1F2937] dark:text-[#E5E7EB]">
+          <details className="rounded-xl bg-white/70 p-4 text-sm text-[#6B7280] shadow-sm">
+            <summary className="cursor-pointer font-semibold text-[#1F2937]">
               Ek Bilgiler
             </summary>
             <p className="mt-3 leading-7">
@@ -239,8 +233,8 @@ export default async function OrganizationProfilePage({
           </details>
         </section>
 
-        <section className="rounded-2xl bg-white px-6 py-8 text-center shadow-sm dark:bg-white/5 dark:ring-1 dark:ring-white/10">
-          <p className="mx-auto max-w-2xl text-sm leading-7 text-[#6B7280] dark:text-[#9CA3AF]">
+        <section className="rounded-2xl bg-white px-6 py-8 text-center shadow-sm">
+          <p className="mx-auto max-w-2xl text-sm leading-7 text-[#6B7280]">
             Bağış işlemi bu platform üzerinden yapılmaz. Devam ettiğinizde ilgili
             kurumun resmi bağış sayfasına yönlendirilirsiniz.
           </p>
@@ -248,7 +242,7 @@ export default async function OrganizationProfilePage({
             href={organization.donationUrl || organization.website}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-5 inline-flex min-h-11 items-center justify-center rounded-md bg-emerald-700 px-5 text-sm font-semibold text-white transition hover:bg-emerald-800 dark:bg-emerald-500 dark:text-emerald-950 dark:hover:bg-emerald-300"
+            className="mt-5 inline-flex min-h-11 items-center justify-center rounded-md bg-emerald-700 px-5 text-sm font-semibold text-white transition hover:bg-emerald-800"
           >
             Resmi Bağış Sayfasına Git →
           </a>
@@ -260,21 +254,13 @@ export default async function OrganizationProfilePage({
 
 function InfoItem({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl bg-white p-5 shadow-sm dark:bg-white/5 dark:ring-1 dark:ring-white/10">
-      <p className="text-xs font-semibold uppercase tracking-wide text-[#6B7280] dark:text-[#9CA3AF]">
+    <div className="rounded-xl bg-white p-5 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-[#6B7280]">
         {label}
       </p>
-      <p className="mt-2 text-sm leading-7 text-[#1F2937] dark:text-[#E5E7EB]">
+      <p className="mt-2 text-sm leading-7 text-[#1F2937]">
         {value}
       </p>
     </div>
-  );
-}
-
-function Badge({ label }: { label: string }) {
-  return (
-    <span className="inline-flex items-center rounded-md bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-800 dark:bg-emerald-400/15 dark:text-emerald-200">
-      {label}
-    </span>
   );
 }

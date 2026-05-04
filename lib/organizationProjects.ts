@@ -1,4 +1,4 @@
-import { getOrganization } from "@/lib/kurban";
+import { getAllProjects } from "@/lib/kurban";
 import type { OrganizationCatalogItem } from "@/lib/organizationsCatalog";
 
 export type OrganizationProjectProfile = {
@@ -6,54 +6,28 @@ export type OrganizationProjectProfile = {
   description: string;
   price?: number;
   region?: string;
+  categories: string[];
   donationUrl: string;
 };
 
-const slugAliases: Record<string, string> = {
-  "turk-kizilay": "kizilay",
-  tdv: "diyanet",
-  ihh: "ihh",
-  "sadece-insan": "sadece-insan",
-};
-
-function inferRegion(focusArea?: string) {
-  return focusArea?.split("·")[0]?.trim();
-}
-
-function hasKurbanInSectors(sectors?: string) {
-  return (sectors ?? "").toLocaleLowerCase("tr-TR").includes("kurban");
-}
-
-export function getKurbanProjectsForOrganization(
+export async function getKurbanProjectsForOrganization(
   organization: OrganizationCatalogItem,
-): OrganizationProjectProfile[] {
-  const mappedSlug = slugAliases[organization.slug];
+): Promise<OrganizationProjectProfile[]> {
+  const projects = await getAllProjects();
+  const orgProjects = projects.filter(
+    (project) => project.organization.slug === organization.slug,
+  );
 
-  if (mappedSlug) {
-    const source = getOrganization(mappedSlug);
-
-    if (source?.projects?.length) {
-      return source.projects.map((project) => ({
-        name: project.title,
-        description: project.description,
-        price: project.price > 0 ? project.price : undefined,
-        region: inferRegion(organization.focusArea),
-        donationUrl: project.donation_url,
-      }));
-    }
+  if (!orgProjects.length) {
+    return [];
   }
 
-  if (hasKurbanInSectors(organization.sectors)) {
-    return [
-      {
-        name: "Kurban Bağışı",
-        description:
-          "Kurban bağışınızı kurumun resmi bağış altyapısı üzerinden hızlıca iletebilirsiniz.",
-        region: inferRegion(organization.focusArea),
-        donationUrl: organization.donationUrl || organization.website,
-      },
-    ];
-  }
-
-  return [];
+  return orgProjects.map((project) => ({
+    name: project.title,
+    description: project.description,
+    price: project.price > 0 ? project.price : undefined,
+    region: project.region,
+    categories: project.categories.map((category) => category.name),
+    donationUrl: project.donation_url,
+  }));
 }

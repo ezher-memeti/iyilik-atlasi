@@ -33,7 +33,7 @@ export function NgoLogo({ name, logoUrl, className = "" }: NgoLogoProps) {
     return (
       <div
         aria-label={`${name} kısaltma logosu`}
-        className={`inline-flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-100 text-xs font-semibold text-emerald-800 dark:bg-emerald-400/20 dark:text-emerald-200 ${className}`}
+        className={`inline-flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-100 text-xs font-semibold text-emerald-800 ${className}`}
       >
         {initials}
       </div>
@@ -46,7 +46,7 @@ export function NgoLogo({ name, logoUrl, className = "" }: NgoLogoProps) {
       alt={`${name} logosu`}
       loading="lazy"
       onError={() => setFailed(true)}
-      className={`h-11 w-11 rounded-lg object-contain bg-white/90 p-1 dark:bg-white/10 ${className}`}
+      className={`h-11 w-11 rounded-lg object-contain bg-white/90 p-1 ${className}`}
     />
   );
 }
