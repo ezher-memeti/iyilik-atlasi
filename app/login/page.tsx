@@ -23,6 +23,7 @@ export default function LoginPage() {
     });
 
     if (error) {
+      console.error("Login error:", error.message);
       setErrorMessage(error.message);
       setIsSubmitting(false);
       return;
