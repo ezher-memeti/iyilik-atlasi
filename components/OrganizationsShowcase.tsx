@@ -12,6 +12,13 @@ type OrganizationsShowcaseProps = {
 
 const INITIAL_VISIBLE = 6;
 const LOAD_BATCH = 6;
+const DESCRIPTION_WORD_LIMIT = 18;
+
+function truncateWords(text: string, limit: number) {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (words.length <= limit) return text;
+  return `${words.slice(0, limit).join(" ")}...`;
+}
 
 export function OrganizationsShowcase({
   organizations,
@@ -100,7 +107,7 @@ export function OrganizationsShowcase({
                 </div>
 
                 <p className="mt-4 min-h-14 text-sm leading-7 text-[#6B7280]">
-                  {organization.shortDescription}
+                  {truncateWords(organization.shortDescription, DESCRIPTION_WORD_LIMIT)}
                 </p>
 
                 {trust || distinguishing ? (

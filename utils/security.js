@@ -13,17 +13,20 @@ export function isAllowedDonationDomain(hostname) {
 
 export function isSafeExternalUrl(url) {
   try {
-    const parsedUrl = new URL(url);
+    const parsedUrl = new URL(String(url).trim());
+    const isHttp = parsedUrl.protocol === "http:" || parsedUrl.protocol === "https:";
+    const isUnsafeHost =
+      parsedUrl.hostname === "localhost" ||
+      parsedUrl.hostname === "127.0.0.1" ||
+      parsedUrl.hostname === "::1";
 
-    return (
-      parsedUrl.protocol === "https:" &&
-      isAllowedDonationDomain(parsedUrl.hostname)
-    );
+    return isHttp && !isUnsafeHost;
   } catch {
     return false;
   }
 }
 
 export function getSafeExternalUrl(url) {
-  return isSafeExternalUrl(url) ? url : null;
+  const normalized = String(url ?? "").trim();
+  return isSafeExternalUrl(normalized) ? normalized : null;
 }

@@ -2,6 +2,7 @@ import { getAllProjects } from "@/lib/kurban";
 import type { OrganizationCatalogItem } from "@/lib/organizationsCatalog";
 
 export type OrganizationProjectProfile = {
+  id: string;
   name: string;
   description: string;
   price?: number;
@@ -23,6 +24,7 @@ export async function getKurbanProjectsForOrganization(
   }
 
   return orgProjects.map((project) => ({
+    id: project.id,
     name: project.title,
     description: project.description,
     price: project.price > 0 ? project.price : undefined,

@@ -2,6 +2,8 @@ import { OrganizationsShowcase } from "@/components/OrganizationsShowcase";
 import { createSeoMetadata } from "@/components/SEO";
 import { getOrganizationCatalog } from "@/lib/organizationsCatalog";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = createSeoMetadata({
   title: "Kurumlar | İyilik Atlası",
   description:

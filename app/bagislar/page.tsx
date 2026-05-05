@@ -2,6 +2,7 @@ import { KurbanComparisonClient } from "@/components/KurbanComparisonClient";
 import { createSeoMetadata } from "@/components/SEO";
 import pages from "@/content/pages.json";
 import { getCategories } from "@/lib/api/getCategories";
+import { getRegions } from "@/lib/api/getRegions";
 import { getAllProjects, getOrganizationGroups } from "@/lib/kurban";
 
 export const metadata = createSeoMetadata({
@@ -24,6 +25,7 @@ export default async function DonationsPage() {
   const groups = await getOrganizationGroups();
   const projects = await getAllProjects();
   const categories = await getCategories();
+  const regions = await getRegions();
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 pb-28 pt-8 sm:px-6 md:pb-10 lg:px-8">
@@ -50,6 +52,7 @@ export default async function DonationsPage() {
         groups={groups}
         projects={projects}
         categories={categories}
+        regions={regions}
       />
     </main>
   );

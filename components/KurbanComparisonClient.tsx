@@ -20,6 +20,7 @@ type KurbanComparisonClientProps = {
   groups: OrganizationGroup[];
   projects: KurbanProjectWithOrganization[];
   categories: Array<{ id: number; name: string }>;
+  regions: Array<{ id: number; name: string }>;
 };
 
 type SortType = "price" | "popular" | "az";
@@ -38,6 +39,7 @@ export function KurbanComparisonClient({
   groups,
   projects,
   categories,
+  regions,
 }: KurbanComparisonClientProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isCompareOpen, setIsCompareOpen] = useState(false);
@@ -164,27 +166,8 @@ export function KurbanComparisonClient({
               return true;
             }
 
-            const text = `${project.type} ${project.title} ${project.description}`.toLocaleLowerCase(
-              "tr-TR",
-            );
-
-            if (regionFilter === "yurt-ici") {
-              return (
-                text.includes("yurt içi") ||
-                text.includes("turkiye") ||
-                text.includes("türkiye") ||
-                project.type === "yurt-ici"
-              );
-            }
-
-            return (
-              text.includes("yurt dışı") ||
-              text.includes("gazze") ||
-              text.includes("filistin") ||
-              text.includes("afrika") ||
-              project.type === "yurt-disi" ||
-              project.type === "filistin"
-            );
+            const projectRegion = project.region ? normalizeText(project.region) : "";
+            return projectRegion === normalizeText(regionFilter);
           })
           .sort((a, b) => {
             if (sortBy === "price") {
@@ -211,10 +194,8 @@ export function KurbanComparisonClient({
   const activeFilterSummary = useMemo(() => {
     const parts: string[] = [];
 
-    if (regionFilter === "yurt-ici") {
-      parts.push("Yurt içi");
-    } else if (regionFilter === "yurt-disi") {
-      parts.push("Yurt dışı");
+    if (regionFilter !== "all") {
+      parts.push(regionFilter);
     }
 
     if (priceFilter === "0-7000") {
@@ -417,8 +398,11 @@ export function KurbanComparisonClient({
                 className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm text-text-primary outline-none transition focus:border-brand-primary"
               >
                 <option value="all">Tümü</option>
-                <option value="yurt-ici">Yurt içi</option>
-                <option value="yurt-disi">Yurt dışı</option>
+                {regions.map((region) => (
+                  <option key={region.id} value={region.name}>
+                    {region.name}
+                  </option>
+                ))}
               </select>
             </label>
 
@@ -659,8 +643,11 @@ export function KurbanComparisonClient({
                   className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm text-text-primary outline-none transition focus:border-brand-primary"
                 >
                   <option value="all">Tümü</option>
-                  <option value="yurt-ici">Yurt içi</option>
-                  <option value="yurt-disi">Yurt dışı</option>
+                  {regions.map((region) => (
+                    <option key={region.id} value={region.name}>
+                      {region.name}
+                    </option>
+                  ))}
                 </select>
               </label>
 

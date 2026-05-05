@@ -9,18 +9,13 @@ import {
 import { getKurbanProjectsForOrganization } from "@/lib/organizationProjects";
 import { formatPrice } from "@/lib/kurban";
 
+export const dynamic = "force-dynamic";
+
 type OrganizationPageProps = {
   params: Promise<{
     slug: string;
   }>;
 };
-
-export async function generateStaticParams() {
-  const organizations = await getOrganizationCatalog();
-  return organizations.map((organization) => ({
-    slug: organization.slug,
-  }));
-}
 
 export async function generateMetadata({ params }: OrganizationPageProps) {
   const { slug } = await params;
@@ -114,9 +109,6 @@ export default async function OrganizationProfilePage({
                 <h1 className="text-3xl font-semibold tracking-tight text-[#1F2937] sm:text-4xl">
                   {organization.name}
                 </h1>
-                <p className="mt-3 max-w-2xl text-sm leading-7 text-[#6B7280]">
-                  {organization.shortDescription}
-                </p>
                 <p className="mt-3 text-xs font-medium text-[#6B7280]">
                   Kategori: {normalizeCategory(organization.category)}
                 </p>
@@ -189,7 +181,7 @@ export default async function OrganizationProfilePage({
             <div className="mt-6 grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
               {projects.map((project) => (
                 <article
-                  key={`${organization.slug}-${project.name}`}
+                  key={project.id}
                   className="flex h-full flex-col rounded-2xl bg-white p-5 shadow-sm"
                 >
                   <h3 className="text-lg font-semibold text-[#1F2937]">
