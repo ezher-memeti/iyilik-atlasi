@@ -16,7 +16,7 @@ const items: Array<{ key: AdminSection; label: string }> = [
 
 export function Sidebar({ activeSection, onChange }: SidebarProps) {
   return (
-    <aside className="w-full border-b border-divider-softLight bg-surface-pageLight p-4 md:w-64 md:border-b-0 md:border-r md:p-5">
+    <aside className="hidden w-64 border-r border-divider-softLight bg-surface-pageLight p-5 md:block">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
         Yönetim
       </h2>

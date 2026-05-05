@@ -105,14 +105,14 @@ export function NgoPanel() {
             <button
               type="button"
               onClick={() => handleEdit(ngo)}
-              className="inline-flex h-9 items-center justify-center rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm font-semibold text-text-primary transition hover:bg-surface-categoryLight"
+              className="inline-flex h-11 items-center justify-center sm:h-9 rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm font-semibold text-text-primary transition hover:bg-surface-categoryLight"
             >
               Düzenle
             </button>
             <button
               type="button"
               onClick={() => handleDelete(ngo.id)}
-              className="inline-flex h-9 items-center justify-center rounded-md border border-red-300 bg-red-50 px-3 text-sm font-semibold text-red-700 transition hover:bg-red-100"
+              className="inline-flex h-11 items-center justify-center sm:h-9 rounded-md border border-red-300 bg-red-50 px-3 text-sm font-semibold text-red-700 transition hover:bg-red-100"
             >
               {isDeletingId === ngo.id ? "Siliniyor..." : "Sil"}
             </button>
@@ -357,8 +357,8 @@ export function NgoPanel() {
   }
 
   return (
-    <section className="space-y-8">
-      <section className="rounded-xl border border-divider-softLight bg-surface-pageLight p-4 sm:p-6">
+    <section className="space-y-6 md:space-y-8">
+      <section className="rounded-xl border border-divider-softLight bg-surface-pageLight p-4 md:p-6">
         <h2 className="text-xl font-semibold text-text-primary">
           {sectionTitle}
         </h2>
@@ -447,11 +447,11 @@ export function NgoPanel() {
             </div>
           </fieldset>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="sticky bottom-0 z-10 -mx-4 flex flex-col gap-2 border-t border-divider-softLight bg-surface-pageLight px-4 py-3 sm:mx-0 sm:flex-row sm:items-center sm:border-t-0 sm:bg-transparent sm:px-0 sm:py-0">
             <button
               type="submit"
               disabled={isSaving}
-              className="inline-flex h-10 items-center justify-center rounded-md bg-brand-primary px-4 text-sm font-semibold text-white transition hover:bg-brand-secondary disabled:cursor-not-allowed disabled:opacity-70"
+              className="inline-flex h-11 w-full items-center justify-center rounded-md bg-brand-primary px-4 text-sm font-semibold text-white transition hover:bg-brand-secondary disabled:cursor-not-allowed disabled:opacity-70 sm:h-10 sm:w-auto"
             >
               {isSaving
                 ? isEditMode
@@ -467,7 +467,7 @@ export function NgoPanel() {
                 type="button"
                 onClick={handleCancelEdit}
                 disabled={isSaving}
-                className="inline-flex h-10 items-center justify-center rounded-md border border-divider-softLight bg-surface-pageLight px-4 text-sm font-semibold text-text-primary transition hover:bg-surface-categoryLight disabled:opacity-70"
+                className="inline-flex h-11 w-full items-center justify-center rounded-md border border-divider-softLight bg-surface-pageLight px-4 text-sm font-semibold text-text-primary transition hover:bg-surface-categoryLight disabled:opacity-70 sm:h-10 sm:w-auto"
               >
                 Düzenlemeyi İptal Et
               </button>
@@ -479,7 +479,7 @@ export function NgoPanel() {
         {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
       </section>
 
-      <section className="rounded-xl border border-divider-softLight bg-surface-pageLight p-4 sm:p-6">
+      <section className="rounded-xl border border-divider-softLight bg-surface-pageLight p-4 md:p-6">
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
             Mevcut Kurumlar
@@ -500,12 +500,12 @@ export function NgoPanel() {
             <div className="mt-4">
               <SortableOrderList items={reorderedItems} onReorder={setReorderedItems} />
             </div>
-            <div className="mt-4 flex items-center justify-end gap-2">
+            <div className="sticky bottom-0 z-10 mt-4 -mx-4 flex gap-2 border-t border-divider-softLight bg-surface-pageLight px-4 py-3 sm:mx-0 sm:justify-end sm:border-t-0 sm:bg-transparent sm:px-0 sm:py-0">
               <button
                 type="button"
                 onClick={handleCancelOrder}
                 disabled={!hasUnsavedOrder || isSavingOrder}
-                className="inline-flex h-10 items-center justify-center rounded-md border border-divider-softLight bg-surface-pageLight px-4 text-sm font-semibold text-text-primary disabled:opacity-60"
+                className="inline-flex h-11 flex-1 items-center justify-center rounded-md border border-divider-softLight bg-surface-pageLight px-4 text-sm font-semibold text-text-primary disabled:opacity-60 sm:h-10 sm:flex-none"
               >
                 İptal
               </button>
@@ -513,7 +513,7 @@ export function NgoPanel() {
                 type="button"
                 onClick={handleSaveOrder}
                 disabled={!hasUnsavedOrder || isSavingOrder || hasActiveFilter}
-                className="inline-flex h-10 items-center justify-center rounded-md bg-brand-primary px-4 text-sm font-semibold text-white disabled:opacity-60"
+                className="inline-flex h-11 flex-1 items-center justify-center rounded-md bg-brand-primary px-4 text-sm font-semibold text-white disabled:opacity-60 sm:h-10 sm:flex-none"
               >
                 {isSavingOrder ? "Sıra kaydediliyor..." : "Sıralamayı Kaydet"}
               </button>

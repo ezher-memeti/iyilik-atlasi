@@ -2,7 +2,8 @@
 
 import {
   DndContext,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   closestCenter,
   useSensor,
   useSensors,
@@ -31,7 +32,19 @@ type SortableOrderListProps = {
   onReorder: (items: SortableListItem[]) => void;
 };
 
-function SortableRow({ item }: { item: SortableListItem }) {
+function SortableRow({
+  item,
+  canMoveUp,
+  canMoveDown,
+  onMoveUp,
+  onMoveDown,
+}: {
+  item: SortableListItem;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+}) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
     id: item.id,
   });
@@ -45,16 +58,16 @@ function SortableRow({ item }: { item: SortableListItem }) {
     <li
       ref={setNodeRef}
       style={style}
-      className={`rounded-lg border p-4 transition ${
+      className={`touch-none rounded-lg border p-4 transition ${
         item.isHighlighted
           ? "border-brand-primary bg-brand-secondary/10"
           : "border-divider-softLight bg-white"
       }`}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
         <button
           type="button"
-          className="mt-0.5 shrink-0 cursor-grab rounded-md border border-divider-softLight px-2 py-1 text-sm text-text-secondary active:cursor-grabbing"
+          className="mt-0.5 h-11 w-11 shrink-0 touch-none cursor-grab rounded-md border border-divider-softLight text-base text-text-secondary active:cursor-grabbing sm:h-10 sm:w-10"
           aria-label="Sürükleyerek sırala"
           {...attributes}
           {...listeners}
@@ -81,14 +94,57 @@ function SortableRow({ item }: { item: SortableListItem }) {
           ) : null}
         </div>
 
-        {item.actions ? <div className="flex shrink-0 items-center gap-2">{item.actions}</div> : null}
+        {item.actions ? (
+          <div className="flex w-full shrink-0 items-center gap-2 sm:w-auto">
+            {item.actions}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="mt-3 flex gap-2 sm:hidden">
+        <button
+          type="button"
+          onClick={onMoveUp}
+          disabled={!canMoveUp}
+          className="inline-flex h-10 flex-1 items-center justify-center rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm font-semibold text-text-primary disabled:opacity-50"
+        >
+          Yukarı Taşı
+        </button>
+        <button
+          type="button"
+          onClick={onMoveDown}
+          disabled={!canMoveDown}
+          className="inline-flex h-10 flex-1 items-center justify-center rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm font-semibold text-text-primary disabled:opacity-50"
+        >
+          Aşağı Taşı
+        </button>
       </div>
     </li>
   );
 }
 
 export function SortableOrderList({ items, onReorder }: SortableOrderListProps) {
-  const sensors = useSensors(useSensor(PointerSensor));
+  const sensors = useSensors(
+    useSensor(MouseSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 6,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 10,
+      },
+    }),
+  );
+
+  function moveItem(oldIndex: number, newIndex: number) {
+    if (oldIndex < 0 || newIndex < 0 || oldIndex >= items.length || newIndex >= items.length) {
+      return;
+    }
+    onReorder(arrayMove(items, oldIndex, newIndex));
+  }
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -105,8 +161,15 @@ export function SortableOrderList({ items, onReorder }: SortableOrderListProps) 
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={items.map((item) => item.id)} strategy={verticalListSortingStrategy}>
         <ul className="space-y-3">
-          {items.map((item) => (
-            <SortableRow key={item.id} item={item} />
+          {items.map((item, index) => (
+            <SortableRow
+              key={item.id}
+              item={item}
+              canMoveUp={index > 0}
+              canMoveDown={index < items.length - 1}
+              onMoveUp={() => moveItem(index, index - 1)}
+              onMoveDown={() => moveItem(index, index + 1)}
+            />
           ))}
         </ul>
       </SortableContext>
