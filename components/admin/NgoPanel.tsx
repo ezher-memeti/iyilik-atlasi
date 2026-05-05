@@ -3,6 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { SortableOrderList, type SortableListItem } from "@/components/admin/SortableOrderList";
+import {
+  getAdminTextValidationMessage,
+  isAllowedAdminText,
+} from "@/lib/adminTextValidation";
 
 type NgoItem = {
   id: number;
@@ -161,6 +165,12 @@ export function NgoPanel() {
   function validateForm() {
     if (!name.trim()) {
       return "Kurum adı zorunludur.";
+    }
+    if (!isAllowedAdminText(name)) {
+      return getAdminTextValidationMessage("Kurum adı");
+    }
+    if (description.trim() && !isAllowedAdminText(description)) {
+      return getAdminTextValidationMessage("Kurum açıklaması");
     }
 
     if (websiteUrl.trim()) {

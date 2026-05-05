@@ -2,6 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import {
+  getAdminTextValidationMessage,
+  isAllowedAdminText,
+} from "@/lib/adminTextValidation";
 
 type BolgeItem = {
   id: number;
@@ -79,6 +83,10 @@ export function BolgePanel() {
     const trimmed = name.trim();
     if (!trimmed) {
       setError("Bölge adı zorunludur.");
+      return;
+    }
+    if (!isAllowedAdminText(trimmed)) {
+      setError(getAdminTextValidationMessage("Bölge adı"));
       return;
     }
 

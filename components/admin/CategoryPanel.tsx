@@ -3,6 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { SortableOrderList, type SortableListItem } from "@/components/admin/SortableOrderList";
+import {
+  getAdminTextValidationMessage,
+  isAllowedAdminText,
+} from "@/lib/adminTextValidation";
 
 type CategoryItem = {
   id: number;
@@ -123,6 +127,14 @@ export function CategoryPanel() {
     const trimmedDescription = description.trim();
     if (!trimmed) {
       setError("Kategori adı zorunludur.");
+      return;
+    }
+    if (!isAllowedAdminText(trimmed)) {
+      setError(getAdminTextValidationMessage("Kategori adı"));
+      return;
+    }
+    if (trimmedDescription && !isAllowedAdminText(trimmedDescription)) {
+      setError(getAdminTextValidationMessage("Kategori açıklaması"));
       return;
     }
     if (trimmedDescription.length > 200) {

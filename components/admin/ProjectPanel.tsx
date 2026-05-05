@@ -3,6 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { SortableOrderList, type SortableListItem } from "@/components/admin/SortableOrderList";
+import {
+  getAdminTextValidationMessage,
+  isAllowedAdminText,
+} from "@/lib/adminTextValidation";
 
 type NgoOption = { id: number; name: string };
 type CategoryOption = { id: number; name: string };
@@ -237,6 +241,10 @@ export function ProjectPanel() {
 
     if (!trimmedTitle) {
       setError("Proje başlığı zorunludur.");
+      return;
+    }
+    if (!isAllowedAdminText(trimmedTitle)) {
+      setError(getAdminTextValidationMessage("Proje başlığı"));
       return;
     }
 
