@@ -28,6 +28,7 @@ type NgoRow = {
   slug?: string | null;
   short_description?: string | null;
   description?: string | null;
+  website_url?: string | null;
   website?: string | null;
   donation_url?: string | null;
   logo_url?: string | null;
@@ -58,11 +59,27 @@ function createSlug(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
+function normalizePublicUrl(raw?: string | null) {
+  const value = raw?.trim() ?? "";
+  if (!value) return "";
+
+  const withProtocol = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+  try {
+    const parsed = new URL(withProtocol);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return "";
+    }
+    return parsed.toString();
+  } catch {
+    return "";
+  }
+}
+
 function mapNgoRow(row: NgoRow): OrganizationCatalogItem {
   const shortDescription =
     row.short_description?.trim() || row.description?.trim() || "";
-  const website = row.website?.trim() || "";
-  const donationUrl = row.donation_url?.trim() || website;
+  const website = normalizePublicUrl(row.website_url || row.website);
+  const donationUrl = normalizePublicUrl(row.donation_url) || website;
 
   return {
     id: row.id,

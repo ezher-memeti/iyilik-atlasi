@@ -27,11 +27,6 @@ export function ProjectCard({
         <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
           {project.organization.name}
         </p>
-        {recommended ? (
-          <span className="inline-flex shrink-0 items-center rounded-md bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-800">
-            Önerilen
-          </span>
-        ) : null}
       </div>
 
       <h3 className="mt-2 text-lg font-semibold leading-7 text-[#1F2937]">
