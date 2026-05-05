@@ -22,7 +22,11 @@ export async function generateMetadata({ params }: OrganizationPageProps) {
   const organization = await getOrganizationBySlug(slug);
 
   if (!organization) {
-    return {};
+    return {
+      title: "Kurum Bulunamadı",
+      description: "Aradığınız kurum bulunamadı.",
+      robots: { index: false, follow: false },
+    };
   }
 
   return createSeoMetadata({

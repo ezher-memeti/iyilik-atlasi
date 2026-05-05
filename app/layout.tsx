@@ -3,23 +3,16 @@ import "./globals.css";
 import { Footer } from "@/components/Footer";
 import { Navbar } from "@/components/Navbar";
 import { StructuredData } from "@/components/StructuredData";
-import { createSeoMetadata, siteUrl } from "@/components/SEO";
-import pages from "@/content/pages.json";
+import { siteUrl } from "@/components/SEO";
 
 export const metadata: Metadata = {
-  ...createSeoMetadata({
-    title: pages.metadata.title,
-    description: pages.metadata.description,
-    keywords: [
-      "İyilik Atlası",
-      "iyilikatlasi",
-      "kurban bağışı",
-      "bağış karşılaştırma",
-      "kurban fiyatları",
-    ],
-    url: "/",
-  }),
   metadataBase: new URL(siteUrl),
+  title: {
+    default: "İyilik Atlası",
+    template: "%s | İyilik Atlası",
+  },
+  description:
+    "İyilik Atlası ile bağış kurumlarını ve seçeneklerini şeffaf biçimde karşılaştırın.",
   icons: {
     icon: [
       {

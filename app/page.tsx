@@ -1,24 +1,15 @@
 import Link from "next/link";
 import { CategorySlider } from "@/components/CategorySlider";
 import { AnimatedStats } from "@/components/hero/AnimatedStats";
-import { createSeoMetadata } from "@/components/SEO";
 import { getCategories } from "@/lib/api/getCategories";
 import { getProjects } from "@/lib/api/getProjects";
 import { getOrganizationCatalog } from "@/lib/organizationsCatalog";
 
-export const metadata = createSeoMetadata({
-  title: "İyilik Atlası | Türkiye’nin Yeni Bağış Karşılaştırma Platformu",
+export const metadata = {
+  title: "Türkiye’nin Yeni Bağış Karşılaştırma Platformu",
   description:
-    "İyilik Atlası ile bağış yapacağınız kurumları ve projeleri karşılaştırın. Şeffaf bilgilerle doğru kurumu seçin ve güvenle bağış kararınızı verin.",
-  keywords: [
-    "iyilik atlası",
-    "iyilikatlasi",
-    "kurban bağışı",
-    "bağış karşılaştırma",
-    "kurban fiyatları",
-  ],
-  url: "/",
-});
+    "İyilik Atlası ile bağış yapacağınız kurumları ve projeleri karşılaştırın. Şeffaf bilgilerle doğru kararı verin.",
+};
 
 const steps = [
   {
