@@ -13,6 +13,17 @@ type CategorySliderProps = {
   categories: CategoryItem[];
 };
 
+function cleanCategoryTitle(title: string) {
+  const trimmed = title.trim();
+  let index = 0;
+  while (index < trimmed.length) {
+    const ch = trimmed.charAt(index);
+    if (/[A-Za-z0-9ÇĞİÖŞÜçğıöşü]/.test(ch)) break;
+    index += 1;
+  }
+  return trimmed.slice(index).trim();
+}
+
 export function CategorySlider({ categories }: CategorySliderProps) {
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -76,7 +87,7 @@ export function CategorySlider({ categories }: CategorySliderProps) {
               className="group w-[280px] min-w-[280px] snap-start rounded-2xl bg-surface-cardLight p-5 transition hover:-translate-y-0.5 hover:bg-white"
             >
               <h3 className="text-lg font-semibold text-text-primary">
-                {category.title}
+                {cleanCategoryTitle(category.title)}
               </h3>
               <p className="mt-2 text-sm leading-7 text-text-secondary">
                 {category.description}

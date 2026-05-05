@@ -35,6 +35,17 @@ function normalizeText(value: string) {
   return value.toLocaleLowerCase("tr-TR");
 }
 
+function cleanCategoryLabel(value: string) {
+  const trimmed = value.trim();
+  let index = 0;
+  while (index < trimmed.length) {
+    const ch = trimmed.charAt(index);
+    if (/[A-Za-z0-9ÇĞİÖŞÜçğıöşü]/.test(ch)) break;
+    index += 1;
+  }
+  return trimmed.slice(index).trim();
+}
+
 export function KurbanComparisonClient({
   groups,
   projects,
@@ -70,14 +81,16 @@ export function KurbanComparisonClient({
 
   const categoryTabs = useMemo(() => {
     const fetched = categories.length
-      ? categories.map((category) => category.name)
+      ? categories.map((category) => cleanCategoryLabel(category.name))
       : [DEFAULT_CATEGORY];
 
-    if (!fetched.some((name) => normalizeText(name) === normalizeText(DEFAULT_CATEGORY))) {
-      return [DEFAULT_CATEGORY, ...fetched];
+    const unique = Array.from(new Set(fetched.filter(Boolean)));
+
+    if (!unique.some((name) => normalizeText(name) === normalizeText(DEFAULT_CATEGORY))) {
+      return [DEFAULT_CATEGORY, ...unique];
     }
 
-    return fetched;
+    return unique;
   }, [categories]);
 
   useEffect(() => {
@@ -640,6 +653,33 @@ export function KurbanComparisonClient({
               <ComparisonTable projects={selectedProjects} onRemove={removeProject} />
             </div>
           </div>
+
+          {showTabArrows ? (
+            <>
+              <button
+                type="button"
+                aria-label="Kategorilerde sola kaydır"
+                onClick={() =>
+                  tabsScrollRef.current?.scrollBy({ left: -220, behavior: "smooth" })
+                }
+                disabled={!canScrollLeft}
+                className="absolute left-1 top-1/2 hidden -translate-y-1/2 rounded-full border border-divider-softLight bg-surface-pageLight p-2 text-text-primary shadow-sm transition disabled:cursor-not-allowed disabled:opacity-35 md:inline-flex"
+              >
+                <span aria-hidden="true">←</span>
+              </button>
+              <button
+                type="button"
+                aria-label="Kategorilerde sağa kaydır"
+                onClick={() =>
+                  tabsScrollRef.current?.scrollBy({ left: 220, behavior: "smooth" })
+                }
+                disabled={!canScrollRight}
+                className="absolute right-1 top-1/2 hidden -translate-y-1/2 rounded-full border border-divider-softLight bg-surface-pageLight p-2 text-text-primary shadow-sm transition disabled:cursor-not-allowed disabled:opacity-35 md:inline-flex"
+              >
+                <span aria-hidden="true">→</span>
+              </button>
+            </>
+          ) : null}
         </div>
       ) : null}
 

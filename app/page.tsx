@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { CategorySlider } from "@/components/CategorySlider";
+import { AnimatedStats } from "@/components/hero/AnimatedStats";
 import { createSeoMetadata } from "@/components/SEO";
 import { getCategories } from "@/lib/api/getCategories";
+import { getProjects } from "@/lib/api/getProjects";
+import { getOrganizationCatalog } from "@/lib/organizationsCatalog";
 
 export const metadata = createSeoMetadata({
   title: "İyilik Atlası | Kurban Bağışı Karşılaştırma Platformu",
@@ -22,19 +25,16 @@ const steps = [
     title: "Kurumları Keşfet",
     description:
       "Kurumlar sayfasında kurumların yaklaşımını, kuruluş bilgilerini ve odak alanlarını kısa sürede gör.",
-    icon: <SearchIcon />,
   },
   {
     title: "Bağış Seçeneklerini Kıyasla",
     description:
       "Bağışlar sayfasında projeleri tek ekranda karşılaştır, fiyat ve açıklamaları net biçimde incele.",
-    icon: <CompareIcon />,
   },
   {
     title: "Güvenle Yönlen",
     description:
       "Kararını verip doğrudan ilgili kurumun resmi bağış bağlantısına geç ve işlemini tamamla.",
-    icon: <ArrowIcon />,
   },
 ];
 
@@ -43,24 +43,25 @@ const highlights = [
     title: "Tarafsız Karşılaştırma",
     description:
       "Tüm bilgiler sade bir düzende sunulur; karar süreci daha net ve daha hızlı olur.",
-    icon: <BalanceIcon />,
   },
   {
     title: "Şeffaf Akış",
     description:
       "Platform ödeme almaz, yalnızca resmi kurum sayfalarına yönlendirme yapar.",
-    icon: <ShieldIcon />,
   },
   {
     title: "Sade Deneyim",
     description:
       "Gereksiz karmaşa olmadan, bağış kararını destekleyen kritik bilgiler öne çıkar.",
-    icon: <SparkIcon />,
   },
 ];
 
 export default async function HomePage() {
-  const categories = await getCategories();
+  const [categories, projects, ngos] = await Promise.all([
+    getCategories(),
+    getProjects(),
+    getOrganizationCatalog(),
+  ]);
   const categoryCards = categories.map((category) => ({
     title: category.name,
     description:
@@ -102,6 +103,13 @@ export default async function HomePage() {
               Bağış Seçeneklerini Gör
             </Link>
           </div>
+          <AnimatedStats
+            stats={[
+              { label: "Proje", value: projects.length },
+              { label: "Kurum", value: ngos.length },
+              { label: "Kategori", value: categories.length },
+            ]}
+          />
         </div>
       </section>
 
@@ -134,10 +142,7 @@ export default async function HomePage() {
                   key={step.title}
                   className="relative flex flex-col items-center text-center md:items-start md:text-left"
                 >
-                  <div className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-brand-secondary/20 text-brand-primary">
-                    {step.icon}
-                  </div>
-                  <p className="mt-4 text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
                     Adım {index + 1}
                   </p>
                   <h3 className="mt-2 text-xl font-semibold text-text-primary">
@@ -167,10 +172,7 @@ export default async function HomePage() {
                   key={item.title}
                   className="flex flex-col items-center text-center md:items-start md:text-left"
                 >
-                  <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-surface-categoryLight text-brand-primary">
-                    {item.icon}
-                  </div>
-                  <h3 className="mt-4 text-lg font-semibold text-text-primary">
+                  <h3 className="text-lg font-semibold text-text-primary">
                     {item.title}
                   </h3>
                   <p className="mt-3 text-sm leading-7 text-text-secondary">
@@ -183,103 +185,5 @@ export default async function HomePage() {
         </section>
       </main>
     </>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.9"
-      className="h-5 w-5"
-      aria-hidden
-    >
-      <circle cx="11" cy="11" r="6" />
-      <path d="M20 20l-4.2-4.2" />
-    </svg>
-  );
-}
-
-function CompareIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.9"
-      className="h-5 w-5"
-      aria-hidden
-    >
-      <path d="M4 7h7M4 12h10M4 17h7" />
-      <path d="M14 7l2-2 4 4-4 4-2-2" />
-    </svg>
-  );
-}
-
-function ArrowIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.9"
-      className="h-5 w-5"
-      aria-hidden
-    >
-      <path d="M5 12h14" />
-      <path d="M13 6l6 6-6 6" />
-    </svg>
-  );
-}
-
-function BalanceIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.9"
-      className="h-5 w-5"
-      aria-hidden
-    >
-      <path d="M12 4v16" />
-      <path d="M6 8h12" />
-      <path d="M7.5 8l-3 5h6l-3-5z" />
-      <path d="M16.5 8l-3 5h6l-3-5z" />
-    </svg>
-  );
-}
-
-function ShieldIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.9"
-      className="h-5 w-5"
-      aria-hidden
-    >
-      <path d="M12 3l7 3v6c0 4.4-2.7 7.9-7 9-4.3-1.1-7-4.6-7-9V6l7-3z" />
-      <path d="M9 12l2 2 4-4" />
-    </svg>
-  );
-}
-
-function SparkIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.9"
-      className="h-5 w-5"
-      aria-hidden
-    >
-      <path d="M12 3l1.8 4.5L18 9l-4.2 1.5L12 15l-1.8-4.5L6 9l4.2-1.5L12 3z" />
-      <path d="M18.5 14l.8 2 .8-2 2-.8-2-.8-.8-2-.8 2-2 .8 2 .8z" />
-    </svg>
   );
 }
