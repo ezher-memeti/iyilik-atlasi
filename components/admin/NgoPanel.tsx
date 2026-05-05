@@ -9,6 +9,7 @@ type NgoItem = {
   name: string;
   description: string | null;
   website_url: string | null;
+  logo_url: string | null;
   position: number | null;
   ngo_bolge?: Array<{ bolge: { id: number; name: string } | { id: number; name: string }[] | null }> | null;
 };
@@ -19,6 +20,7 @@ const INITIAL_FORM = {
   name: "",
   description: "",
   websiteUrl: "",
+  logoUrl: "",
 };
 
 function shorten(text: string, max = 140) {
@@ -50,6 +52,7 @@ export function NgoPanel() {
   const [name, setName] = useState(INITIAL_FORM.name);
   const [description, setDescription] = useState(INITIAL_FORM.description);
   const [websiteUrl, setWebsiteUrl] = useState(INITIAL_FORM.websiteUrl);
+  const [logoUrl, setLogoUrl] = useState(INITIAL_FORM.logoUrl);
   const [selectedRegionIds, setSelectedRegionIds] = useState<number[]>([]);
   const [editingNgoId, setEditingNgoId] = useState<number | null>(null);
 
@@ -73,7 +76,7 @@ export function NgoPanel() {
 
       let query = supabase
         .from("ngo")
-        .select("id,name,description,website_url,position,ngo_bolge(bolge:bolge_id(id,name))");
+        .select("id,name,description,website_url,logo_url,position,ngo_bolge(bolge:bolge_id(id,name))");
       query = hasActiveFilter
         ? query.order("id", { ascending: true })
         : query.order("position", { ascending: true, nullsFirst: false });
@@ -87,6 +90,7 @@ export function NgoPanel() {
         primary: ngo.name,
         secondary: [
           ngo.description ? shorten(ngo.description) : "Açıklama yok",
+          ngo.logo_url ? "Logo URL tanımlı" : "Logo yok",
           (ngo.ngo_bolge ?? [])
             .map((item) => extractRegionName(item.bolge))
             .filter(Boolean)
@@ -141,6 +145,7 @@ export function NgoPanel() {
     setName(INITIAL_FORM.name);
     setDescription(INITIAL_FORM.description);
     setWebsiteUrl(INITIAL_FORM.websiteUrl);
+    setLogoUrl(INITIAL_FORM.logoUrl);
     setSelectedRegionIds([]);
     setEditingNgoId(null);
   }
@@ -169,6 +174,17 @@ export function NgoPanel() {
       }
     }
 
+    if (logoUrl.trim()) {
+      try {
+        const parsed = new URL(logoUrl.trim());
+        if (!["https:", "http:"].includes(parsed.protocol)) {
+          return "Logo URL adresi http:// veya https:// ile başlamalıdır.";
+        }
+      } catch {
+        return "Logo URL adresi geçerli bir URL olmalıdır.";
+      }
+    }
+
     return null;
   }
 
@@ -187,6 +203,7 @@ export function NgoPanel() {
       setName(ngo.name ?? "");
       setDescription(ngo.description ?? "");
       setWebsiteUrl(ngo.website_url ?? "");
+      setLogoUrl(ngo.logo_url ?? "");
       setSelectedRegionIds(((data ?? []) as NgoBolgeRow[]).map((item) => item.bolge_id));
     } catch (editError) {
       console.error(editError);
@@ -217,6 +234,7 @@ export function NgoPanel() {
       name: name.trim(),
       description: description.trim() || null,
       website_url: websiteUrl.trim() || null,
+      logo_url: logoUrl.trim() || null,
     };
 
     try {
@@ -390,6 +408,21 @@ export function NgoPanel() {
               onChange={(event) => setWebsiteUrl(event.target.value)}
               className="h-10 w-full rounded-md border border-divider-softLight bg-white px-3 text-sm outline-none transition focus:border-brand-primary"
               placeholder="https://example.org"
+              disabled={isSaving}
+            />
+          </div>
+
+          <div>
+            <label htmlFor="ngo-logo-url" className="mb-1 block text-sm font-medium">
+              Logo URL
+            </label>
+            <input
+              id="ngo-logo-url"
+              type="text"
+              value={logoUrl}
+              onChange={(event) => setLogoUrl(event.target.value)}
+              className="h-10 w-full rounded-md border border-divider-softLight bg-white px-3 text-sm outline-none transition focus:border-brand-primary"
+              placeholder="https://example.com/logo.png"
               disabled={isSaving}
             />
           </div>

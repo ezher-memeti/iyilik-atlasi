@@ -27,7 +27,8 @@ export function NgoLogo({ name, logoUrl, className = "" }: NgoLogoProps) {
   const [failed, setFailed] = useState(false);
 
   const initials = useMemo(() => getInitials(name), [name]);
-  const showImage = Boolean(logoUrl) && !failed;
+  const normalizedLogoUrl = logoUrl?.trim() ?? "";
+  const showImage = Boolean(normalizedLogoUrl) && !failed;
 
   if (!showImage) {
     return (
@@ -42,7 +43,7 @@ export function NgoLogo({ name, logoUrl, className = "" }: NgoLogoProps) {
 
   return (
     <img
-      src={logoUrl}
+      src={normalizedLogoUrl}
       alt={`${name} logosu`}
       loading="lazy"
       onError={() => setFailed(true)}

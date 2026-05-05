@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ComparisonTable } from "@/components/ComparisonTable";
 import { ProjectCard } from "@/components/ProjectCard";
 import common from "@/content/common.json";
@@ -41,6 +41,7 @@ export function KurbanComparisonClient({
   categories,
   regions,
 }: KurbanComparisonClientProps) {
+  const tabsScrollRef = useRef<HTMLDivElement | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isCompareOpen, setIsCompareOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(DEFAULT_CATEGORY);
@@ -63,6 +64,9 @@ export function KurbanComparisonClient({
   const [draftPriceFilter, setDraftPriceFilter] = useState(DEFAULT_PRICE_FILTER);
   const [draftRegionFilter, setDraftRegionFilter] = useState(DEFAULT_REGION_FILTER);
   const [draftSortBy, setDraftSortBy] = useState<SortType>(DEFAULT_SORT);
+  const [showTabArrows, setShowTabArrows] = useState(false);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
 
   const categoryTabs = useMemo(() => {
     const fetched = categories.length
@@ -228,6 +232,30 @@ export function KurbanComparisonClient({
     }
   }, [filteredGroups, openOrganization]);
 
+  const updateTabScrollState = useCallback(() => {
+    const el = tabsScrollRef.current;
+    if (!el) return;
+
+    const hasOverflow = el.scrollWidth > el.clientWidth + 2;
+    setShowTabArrows(hasOverflow);
+    setCanScrollLeft(el.scrollLeft > 2);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 2);
+  }, []);
+
+  useEffect(() => {
+    updateTabScrollState();
+    const el = tabsScrollRef.current;
+    if (!el) return;
+
+    el.addEventListener("scroll", updateTabScrollState, { passive: true });
+    window.addEventListener("resize", updateTabScrollState);
+
+    return () => {
+      el.removeEventListener("scroll", updateTabScrollState);
+      window.removeEventListener("resize", updateTabScrollState);
+    };
+  }, [updateTabScrollState, categoryTabs]);
+
   const recommendedProjectIds = useMemo(() => {
     const map: Record<string, string> = {};
 
@@ -335,26 +363,58 @@ export function KurbanComparisonClient({
   return (
     <>
       <section className="rounded-2xl border border-divider-softLight bg-white/80 p-4 backdrop-blur-sm sm:p-6">
-        <div className="overflow-x-auto border-b border-divider-softLight pb-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="flex w-max min-w-full gap-6 pr-8 sm:gap-8">
-            {categoryTabs.map((tab) => {
-              const isActive = tab === selectedCategory;
-              return (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => handleCategoryChange(tab)}
-                  className={`-mb-px border-b-2 px-1 py-3 text-sm font-semibold transition-colors duration-200 ${
-                    isActive
-                      ? "border-brand-primary text-brand-primary"
-                      : "border-transparent text-text-secondary hover:text-text-primary"
-                  }`}
-                >
-                  {tab}
-                </button>
-              );
-            })}
+        <div className="relative md:px-10">
+          <div
+            ref={tabsScrollRef}
+            className="overflow-x-auto border-b border-divider-softLight pb-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            <div className="flex w-max min-w-full gap-6 pr-4 sm:gap-8 sm:pr-6">
+              {categoryTabs.map((tab) => {
+                const isActive = tab === selectedCategory;
+                return (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => handleCategoryChange(tab)}
+                    className={`-mb-px border-b-2 px-1 py-3 text-sm font-semibold transition-colors duration-200 ${
+                      isActive
+                        ? "border-brand-primary text-brand-primary"
+                        : "border-transparent text-text-secondary hover:text-text-primary"
+                    }`}
+                  >
+                    {tab}
+                  </button>
+                );
+              })}
+            </div>
           </div>
+
+          {showTabArrows ? (
+            <>
+              <button
+                type="button"
+                aria-label="Kategorilerde sola kaydır"
+                onClick={() =>
+                  tabsScrollRef.current?.scrollBy({ left: -220, behavior: "smooth" })
+                }
+                disabled={!canScrollLeft}
+                className="absolute left-1 top-1/2 hidden -translate-y-1/2 rounded-full border border-divider-softLight bg-surface-pageLight p-2 text-text-primary shadow-sm transition disabled:cursor-not-allowed disabled:opacity-35 md:inline-flex"
+              >
+                <span aria-hidden="true">←</span>
+              </button>
+              <button
+                type="button"
+                aria-label="Kategorilerde sağa kaydır"
+                onClick={() =>
+                  tabsScrollRef.current?.scrollBy({ left: 220, behavior: "smooth" })
+                }
+                disabled={!canScrollRight}
+                className="absolute right-1 top-1/2 hidden -translate-y-1/2 rounded-full border border-divider-softLight bg-surface-pageLight p-2 text-text-primary shadow-sm transition disabled:cursor-not-allowed disabled:opacity-35 md:inline-flex"
+              >
+                <span aria-hidden="true">→</span>
+              </button>
+            </>
+          ) : null}
         </div>
 
         <div className="mt-4 hidden md:block">
