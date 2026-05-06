@@ -14,9 +14,7 @@ export default function AboutPage() {
       title="Hakkında"
       intro={
         <p>
-          İyilik Atlası, Türkiye&apos;deki bağışçılara kurumları ve bağış
-          seçeneklerini şeffaf, karşılaştırmalı ve sade bir arayüzde sunmak
-          amacıyla kurulmuş bağımsız bir dijital platformdur.
+
         </p>
       }
       sections={[
@@ -25,9 +23,8 @@ export default function AboutPage() {
           body: (
             <>
               <p>
-                Hangi kuruma bağış yapacağına karar verirken doğru bilgiye
-                ulaşmak her zaman kolay değildir. İyilik Atlası, bu süreci
-                basitleştirmek için tasarlandı.
+                İyilik Atlası, Türkiye'deki bağışçılara kurumları ve bağış seçeneklerini şeffaf, karşılaştırmalı ve sade bir arayüzde sunmak amacıyla kurulmuş bağımsız bir dijital platformdur.
+                Hangi kuruma bağış yapacağına karar verirken doğru bilgiye ulaşmak her zaman kolay değildir. İyilik Atlası, bu süreci basitleştirmek için tasarlandı.
               </p>
             </>
           ),

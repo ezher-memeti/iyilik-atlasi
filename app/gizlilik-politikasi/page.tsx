@@ -14,10 +14,7 @@ export default function PrivacyPolicyPage() {
       title="Gizlilik Politikası"
       intro={
         <p>
-          İyilik Atlası olarak kişisel verilerinizin güvenliğine önem veriyoruz.
-          Bu politika, platformumuzu kullandığınızda hangi verilerin
-          toplandığını, nasıl kullanıldığını ve haklarınızın neler olduğunu
-          açıklar.
+          İyilik Atlası olarak kişisel verilerinizin güvenliğine önem veriyoruz. Bu politika, platformumuzu kullandığınızda hangi verilerin toplandığını, nasıl kullanıldığını ve haklarınızın neler olduğunu açıklar.
         </p>
       }
       sections={[
