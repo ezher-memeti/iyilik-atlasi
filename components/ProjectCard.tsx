@@ -38,8 +38,17 @@ export function ProjectCard({
       <p className="mt-3 line-clamp-2 text-sm leading-7 text-[#6B7280]">
         {project.description}
       </p>
-      {project.region ? (
-        <p className="mt-2 text-sm font-medium text-[#6B7280]">Bölge: {project.region}</p>
+      {project.regions && project.regions.length > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {project.regions.map((region) => (
+            <span
+              key={`${project.id}-${region}`}
+              className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800"
+            >
+              {region}
+            </span>
+          ))}
+        </div>
       ) : null}
       <div className="mt-6 grid grid-cols-1 gap-2.5 sm:flex sm:flex-wrap">
         <SafeLink

@@ -80,7 +80,8 @@ export default async function OrganizationProfilePage({
   const projectTerritories = Array.from(
     new Set(
       projects
-        .map((project) => project.region?.trim())
+        .flatMap((project) => project.regions ?? (project.region ? [project.region] : []))
+        .map((region) => region.trim())
         .filter((region): region is string => Boolean(region)),
     ),
   );
@@ -197,7 +198,18 @@ export default async function OrganizationProfilePage({
 
                   <div className="mt-4 space-y-1 text-sm text-[#6B7280]">
                     {project.price ? <p>Fiyat: {formatPrice(project.price)}</p> : null}
-                    {project.region ? <p>Bölge: {project.region}</p> : null}
+                    {project.regions && project.regions.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {project.regions.map((region) => (
+                          <span
+                            key={`${project.id}-${region}`}
+                            className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800"
+                          >
+                            {region}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
 
                   <a

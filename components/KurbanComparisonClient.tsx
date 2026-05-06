@@ -183,8 +183,10 @@ export function KurbanComparisonClient({
               return true;
             }
 
-            const projectRegion = project.region ? normalizeText(project.region) : "";
-            return projectRegion === normalizeText(regionFilter);
+            const normalizedRegionFilter = normalizeText(regionFilter);
+            const projectRegions = (project.regions ?? (project.region ? [project.region] : []))
+              .map((region) => normalizeText(region));
+            return projectRegions.includes(normalizedRegionFilter);
           })
           .sort((a, b) => {
             if (sortBy === "price") {

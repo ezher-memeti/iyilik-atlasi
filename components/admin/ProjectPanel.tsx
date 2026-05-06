@@ -12,14 +12,14 @@ type NgoOption = { id: number; name: string };
 type CategoryOption = { id: number; name: string };
 type RegionOption = { id: number; name: string };
 type ProjectCategoryRow = { category_id: number };
+type ProjectBolgeRow = { bolge_id: number };
 type ProjectListItem = {
   id: number;
   title: string;
   price: number | null;
   donation_url: string;
   ngo_id: number;
-  bolge_id: number | null;
-  bolge: { id: number; name: string } | null;
+  regions: Array<{ id: number; name: string }>;
   ngo: { name: string } | null;
   position: number | null;
 };
@@ -30,8 +30,11 @@ type ProjectRow = {
   price: number | null;
   donation_url: string;
   ngo_id: number;
-  bolge_id: number | null;
-  bolge: { id: number; name: string } | { id: number; name: string }[] | null;
+  project_bolge:
+    | Array<{
+        bolge: { id: number; name: string } | { id: number; name: string }[] | null;
+      }>
+    | null;
   position: number | null;
   ngo: { name: string } | { name: string }[] | null;
 };
@@ -41,7 +44,7 @@ const INITIAL_FORM = {
   price: "",
   donationUrl: "",
   ngoId: "",
-  bolgeId: "",
+  selectedRegionIds: [] as number[],
   selectedCategoryIds: [] as number[],
 };
 
@@ -64,7 +67,9 @@ export function ProjectPanel() {
   const [price, setPrice] = useState(INITIAL_FORM.price);
   const [donationUrl, setDonationUrl] = useState(INITIAL_FORM.donationUrl);
   const [ngoId, setNgoId] = useState(INITIAL_FORM.ngoId);
-  const [bolgeId, setBolgeId] = useState(INITIAL_FORM.bolgeId);
+  const [selectedRegionIds, setSelectedRegionIds] = useState<number[]>(
+    INITIAL_FORM.selectedRegionIds,
+  );
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>(
     INITIAL_FORM.selectedCategoryIds,
   );
@@ -101,11 +106,11 @@ export function ProjectPanel() {
         (hasActiveFilter
           ? supabase
               .from("project")
-              .select("id,title,price,donation_url,ngo_id,bolge_id,position,ngo:ngo_id(name),bolge:bolge_id(id,name)")
+              .select("id,title,price,donation_url,ngo_id,position,ngo:ngo_id(name),project_bolge(bolge:bolge_id(id,name))")
               .order("id", { ascending: true })
           : supabase
               .from("project")
-              .select("id,title,price,donation_url,ngo_id,bolge_id,position,ngo:ngo_id(name),bolge:bolge_id(id,name)")
+              .select("id,title,price,donation_url,ngo_id,position,ngo:ngo_id(name),project_bolge(bolge:bolge_id(id,name))")
               .order("position", { ascending: true, nullsFirst: false })),
       ]);
 
@@ -123,8 +128,16 @@ export function ProjectPanel() {
         price: row.price,
         donation_url: row.donation_url,
         ngo_id: row.ngo_id,
-        bolge_id: row.bolge_id,
-        bolge: Array.isArray(row.bolge) ? row.bolge[0] ?? null : row.bolge,
+        regions: Array.from(
+          new Map(
+            (row.project_bolge ?? [])
+              .map((item) => {
+                const bolge = Array.isArray(item.bolge) ? item.bolge[0] ?? null : item.bolge;
+                return bolge ? [bolge.id, bolge] : null;
+              })
+              .filter((item): item is [number, { id: number; name: string }] => Boolean(item)),
+          ).values(),
+        ),
         position: row.position,
         ngo: Array.isArray(row.ngo) ? row.ngo[0] ?? null : row.ngo,
       }));
@@ -133,7 +146,11 @@ export function ProjectPanel() {
       const listItems = mappedProjects.map((project) => ({
         id: project.id,
         primary: project.title,
-        secondary: `Kurum: ${project.ngo?.name ?? "Bilinmiyor"} · Bölge: ${project.bolge?.name ?? "Belirtilmedi"} · Tutar: ${project.price ?? 0}`,
+        secondary: `Kurum: ${project.ngo?.name ?? "Bilinmiyor"} · Bölge: ${
+          project.regions.length
+            ? project.regions.map((region) => region.name).join(", ")
+            : "Belirtilmedi"
+        } · Tutar: ${project.price ?? 0}`,
         link: project.donation_url,
         isHighlighted: editingProjectId === project.id,
         actions: (
@@ -174,13 +191,19 @@ export function ProjectPanel() {
     setPrice(INITIAL_FORM.price);
     setDonationUrl(INITIAL_FORM.donationUrl);
     setNgoId(INITIAL_FORM.ngoId);
-    setBolgeId(INITIAL_FORM.bolgeId);
+    setSelectedRegionIds(INITIAL_FORM.selectedRegionIds);
     setSelectedCategoryIds(INITIAL_FORM.selectedCategoryIds);
     setEditingProjectId(null);
   }
 
   function toggleCategory(id: number) {
     setSelectedCategoryIds((current) =>
+      current.includes(id) ? current.filter((value) => value !== id) : [...current, id],
+    );
+  }
+
+  function toggleRegion(id: number) {
+    setSelectedRegionIds((current) =>
       current.includes(id) ? current.filter((value) => value !== id) : [...current, id],
     );
   }
@@ -207,14 +230,21 @@ export function ProjectPanel() {
 
       if (relationError) throw relationError;
 
+      const { data: regionData, error: regionRelationError } = await supabase
+        .from("project_bolge")
+        .select("bolge_id")
+        .eq("project_id", project.id);
+      if (regionRelationError) throw regionRelationError;
+
       const categoryIds = ((data ?? []) as ProjectCategoryRow[]).map((item) => item.category_id);
+      const regionIds = ((regionData ?? []) as ProjectBolgeRow[]).map((item) => item.bolge_id);
 
       setEditingProjectId(project.id);
       setTitle(project.title ?? "");
       setPrice(project.price !== null ? String(project.price) : "");
       setDonationUrl(project.donation_url ?? "");
       setNgoId(String(project.ngo_id));
-      setBolgeId(project.bolge_id ? String(project.bolge_id) : "");
+      setSelectedRegionIds(Array.from(new Set(regionIds)));
       setSelectedCategoryIds(categoryIds);
     } catch (editError) {
       console.error(editError);
@@ -278,7 +308,6 @@ export function ProjectPanel() {
 
       const projectPayload = {
         ngo_id: Number(ngoId),
-        bolge_id: bolgeId ? Number(bolgeId) : null,
         title: trimmedTitle,
         price: parsedPrice,
         donation_url: trimmedUrl,
@@ -298,6 +327,12 @@ export function ProjectPanel() {
           .delete()
           .eq("project_id", editingProjectId);
         if (deleteRelationsError) throw deleteRelationsError;
+
+        const { error: deleteProjectBolgeError } = await supabase
+          .from("project_bolge")
+          .delete()
+          .eq("project_id", editingProjectId);
+        if (deleteProjectBolgeError) throw deleteProjectBolgeError;
       } else {
         const maxPosition = projects.reduce((acc, item) => Math.max(acc, item.position ?? 0), 0);
         const { data: insertedProject, error: insertError } = await supabase
@@ -326,6 +361,18 @@ export function ProjectPanel() {
         .insert(junctionPayload);
       if (relationError) throw relationError;
 
+      const uniqueRegionIds = Array.from(new Set(selectedRegionIds));
+      if (uniqueRegionIds.length > 0) {
+        const regionPayload = uniqueRegionIds.map((regionId) => ({
+          project_id: projectId,
+          bolge_id: regionId,
+        }));
+        const { error: regionInsertError } = await supabase
+          .from("project_bolge")
+          .insert(regionPayload);
+        if (regionInsertError) throw regionInsertError;
+      }
+
       setMessage(isEditMode ? "Proje güncellendi." : "Proje oluşturuldu.");
       resetForm();
       await loadData();
@@ -351,6 +398,12 @@ export function ProjectPanel() {
         .delete()
         .eq("project_id", projectId);
       if (deleteRelationsError) throw deleteRelationsError;
+
+      const { error: deleteProjectBolgeError } = await supabase
+        .from("project_bolge")
+        .delete()
+        .eq("project_id", projectId);
+      if (deleteProjectBolgeError) throw deleteProjectBolgeError;
 
       const { error: deleteProjectError } = await supabase.from("project").delete().eq("id", projectId);
       if (deleteProjectError) throw deleteProjectError;
@@ -481,25 +534,25 @@ export function ProjectPanel() {
             </select>
           </div>
 
-          <div>
-            <label htmlFor="project-bolge" className="mb-1 block text-sm font-medium">
-              Bölge
-            </label>
-            <select
-              id="project-bolge"
-              value={bolgeId}
-              onChange={(event) => setBolgeId(event.target.value)}
-              className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm outline-none focus:border-brand-primary"
-              disabled={isSaving}
-            >
-              <option value="">Bölge seçin</option>
+          <fieldset>
+            <legend className="text-sm font-medium">Bölgeler</legend>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
               {regions.map((region) => (
-                <option key={region.id} value={region.id}>
+                <label
+                  key={region.id}
+                  className="inline-flex items-center gap-2 rounded-md border border-divider-softLight bg-surface-pageLight px-3 py-2 text-sm"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedRegionIds.includes(region.id)}
+                    onChange={() => toggleRegion(region.id)}
+                    disabled={isSaving}
+                  />
                   {region.name}
-                </option>
+                </label>
               ))}
-            </select>
-          </div>
+            </div>
+          </fieldset>
 
           <fieldset>
             <legend className="text-sm font-medium">Kategoriler * (en az 1)</legend>

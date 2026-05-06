@@ -7,6 +7,7 @@ export type OrganizationProjectProfile = {
   description: string;
   price?: number;
   region?: string;
+  regions?: string[];
   categories: string[];
   donationUrl: string;
 };
@@ -29,6 +30,7 @@ export async function getKurbanProjectsForOrganization(
     description: project.description,
     price: project.price > 0 ? project.price : undefined,
     region: project.region,
+    regions: project.regions,
     categories: project.categories.map((category) => category.name),
     donationUrl: project.donation_url,
   }));

@@ -28,6 +28,7 @@ function inferTypeFromProject(project: ProjectListItem): KurbanType {
 function mapProject(project: ProjectListItem): KurbanProjectWithOrganization {
   const ngoName = project.ngo?.name ?? "Bilinmeyen Kurum";
   const ngoId = project.ngo?.id ?? 0;
+  const regions = project.bolgeler.map((bolge) => bolge.name);
 
   return {
     id: String(project.id),
@@ -35,7 +36,8 @@ function mapProject(project: ProjectListItem): KurbanProjectWithOrganization {
     title: project.title,
     price: project.price ?? 0,
     description: `Kategori: ${project.categories.map((c) => c.name).join(", ") || "Belirtilmedi"}`,
-    region: project.bolge?.name ?? undefined,
+    region: regions[0] ?? undefined,
+    regions: regions.length ? regions : undefined,
     donation_url: project.donation_url,
     organization: {
       id: ngoId,

@@ -9,10 +9,10 @@ export type ProjectListItem = {
     id: number;
     name: string;
   } | null;
-  bolge: {
+  bolgeler: Array<{
     id: number;
     name: string;
-  } | null;
+  }>;
   categories: Array<{
     id: number;
     name: string;
@@ -29,7 +29,11 @@ type ProjectQueryRow = {
   price: number | null;
   donation_url: string;
   ngo: { id: number; name: string } | null;
-  bolge: { id: number; name: string } | null;
+  project_bolge:
+    | Array<{
+        bolge: { id: number; name: string } | { id: number; name: string }[] | null;
+      }>
+    | null;
   project_categories:
   | Array<{ categories: { id: number; name: string } | null }>
   | null;
@@ -50,9 +54,11 @@ export async function getProjects(options: GetProjectsOptions = {}): Promise<Pro
         id,
         name
       ),
-      bolge:bolge_id (
-        id,
-        name
+      project_bolge (
+        bolge:bolge_id (
+          id,
+          name
+        )
       ),
       project_categories (
         categories:category_id (
@@ -81,7 +87,18 @@ export async function getProjects(options: GetProjectsOptions = {}): Promise<Pro
     price: row.price,
     donation_url: row.donation_url,
     ngo: row.ngo,
-    bolge: row.bolge,
+    bolgeler: Array.from(
+      new Map(
+        (row.project_bolge ?? [])
+          .map((joinRow) => {
+            const bolge = Array.isArray(joinRow.bolge)
+              ? joinRow.bolge[0] ?? null
+              : joinRow.bolge;
+            return bolge ? [bolge.id, bolge] : null;
+          })
+          .filter((item): item is [number, { id: number; name: string }] => Boolean(item)),
+      ).values(),
+    ),
     categories: (row.project_categories ?? [])
       .map((joinRow) => joinRow.categories)
       .filter((category): category is { id: number; name: string } =>

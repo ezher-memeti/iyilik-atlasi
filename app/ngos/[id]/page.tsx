@@ -18,7 +18,11 @@ type NgoQueryRow = {
         title: string;
         price: number | null;
         donation_url: string | null;
-        bolge: { id: number; name: string } | { id: number; name: string }[] | null;
+        project_bolge:
+          | Array<{
+              bolge: { id: number; name: string } | { id: number; name: string }[] | null;
+            }>
+          | null;
         project_categories:
           | Array<{
               category: { id: number; name: string } | { id: number; name: string }[] | null;
@@ -45,7 +49,7 @@ type NgoProfileData = {
     title: string;
     price: number | null;
     donation_url: string | null;
-    region: string | null;
+    regions: string[];
     categories: string[];
   }>;
   categories: string[];
@@ -71,14 +75,14 @@ function buildInsights(projects: NgoProfileData["projects"]) {
   const pairs = new Set<string>();
 
   for (const project of projects) {
-    const region = project.region ?? "Belirtilmedi";
+    const regionsLabel = project.regions.length ? project.regions.join(", ") : "Belirtilmedi";
     if (!project.categories.length) {
-      pairs.add(`Genel bağış projeleri ${region} bölgesinde aktif`);
+      pairs.add(`Genel bağış projeleri ${regionsLabel} bölgesinde aktif`);
       continue;
     }
 
     for (const category of project.categories) {
-      pairs.add(`${category} projeleri ${region} bölgesinde aktif`);
+      pairs.add(`${category} projeleri ${regionsLabel} bölgesinde aktif`);
     }
   }
 
@@ -101,9 +105,11 @@ async function getNgoProfileData(id: number): Promise<NgoProfileData | null> {
         title,
         price,
         donation_url,
-        bolge:bolge_id (
-          id,
-          name
+        project_bolge (
+          bolge:bolge_id (
+            id,
+            name
+          )
         ),
         project_categories (
           category:category_id (
@@ -129,7 +135,13 @@ async function getNgoProfileData(id: number): Promise<NgoProfileData | null> {
 
   const row = data as unknown as NgoQueryRow;
   const projects = (row.projects ?? []).map((project) => {
-    const region = pickOne(project.bolge)?.name ?? null;
+    const regions = Array.from(
+      new Set(
+        (project.project_bolge ?? [])
+          .map((item) => pickOne(item.bolge)?.name ?? null)
+          .filter((name): name is string => Boolean(name)),
+      ),
+    );
     const categories = (project.project_categories ?? [])
       .map((item) => pickOne(item.category)?.name ?? null)
       .filter((name): name is string => Boolean(name));
@@ -139,7 +151,7 @@ async function getNgoProfileData(id: number): Promise<NgoProfileData | null> {
       title: project.title,
       price: project.price,
       donation_url: project.donation_url,
-      region,
+      regions,
       categories: Array.from(new Set(categories)),
     };
   });
@@ -253,7 +265,9 @@ export default async function NgoProfilePage({ params }: NgoProfilePageProps) {
               <li key={project.id} className="rounded-lg border border-slate-200 p-4">
                 <p className="font-semibold text-[#1F2937]">{project.title}</p>
                 <p className="mt-1 text-sm text-[#6B7280]">
-                  {project.region ? `Bölge: ${project.region}` : "Bölge: Belirtilmedi"}
+                  {project.regions.length
+                    ? `Bölge: ${project.regions.join(", ")}`
+                    : "Bölge: Belirtilmedi"}
                   {project.price !== null ? ` · Fiyat: ${formatCurrency(project.price)}` : ""}
                 </p>
                 {project.donation_url ? (

@@ -14,6 +14,7 @@ export type KurbanProject = {
   price: number;
   description: string;
   region?: string;
+  regions?: string[];
   donation_url: string;
 };
 
