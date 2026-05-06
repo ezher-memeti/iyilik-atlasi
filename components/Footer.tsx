@@ -14,7 +14,7 @@ const linkGroups = [
     title: "Kurumsal",
     links: [
       { label: "Hakkında", href: "/hakkinda" },
-      { label: "İletişim", href: "mailto:info@iyilikatlasi.com.tr" },
+      { label: "İletişim", href: "/iletisim" },
     ],
   },
   {
