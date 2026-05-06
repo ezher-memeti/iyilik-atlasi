@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { OrganizationCatalogItem } from "@/lib/organizationsCatalog";
 import common from "@/content/common.json";
 import { NgoLogo } from "@/components/NgoLogo";
@@ -10,9 +10,10 @@ type OrganizationsShowcaseProps = {
   organizations: OrganizationCatalogItem[];
 };
 
-const INITIAL_VISIBLE = 6;
-const LOAD_BATCH = 6;
 const DESCRIPTION_WORD_LIMIT = 18;
+const DESKTOP_CARDS_PER_PAGE = 9;
+const MOBILE_CARDS_PER_PAGE = 6;
+type SortType = "default" | "name";
 
 function truncateWords(text: string, limit: number) {
   const words = text.trim().split(/\s+/).filter(Boolean);
@@ -23,34 +24,55 @@ function truncateWords(text: string, limit: number) {
 export function OrganizationsShowcase({
   organizations,
 }: OrganizationsShowcaseProps) {
-  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState<SortType>("default");
+  const [cardsPerPage, setCardsPerPage] = useState(DESKTOP_CARDS_PER_PAGE);
+  const [currentPage, setCurrentPage] = useState(1);
 
-  const sortedOrganizations = useMemo(
-    () =>
-      [...organizations].sort((a, b) => {
+  useEffect(() => {
+    const updateCardsPerPage = () => {
+      setCardsPerPage(
+        window.innerWidth >= 1024 ? DESKTOP_CARDS_PER_PAGE : MOBILE_CARDS_PER_PAGE,
+      );
+    };
+
+    updateCardsPerPage();
+    window.addEventListener("resize", updateCardsPerPage);
+    return () => window.removeEventListener("resize", updateCardsPerPage);
+  }, []);
+
+  const filteredOrganizations = useMemo(() => {
+    const normalizedQuery = search.trim().toLocaleLowerCase("tr-TR");
+    if (!normalizedQuery) return organizations;
+
+    return organizations.filter((organization) =>
+      organization.name.toLocaleLowerCase("tr-TR").includes(normalizedQuery),
+    );
+  }, [organizations, search]);
+
+  const sortedOrganizations = useMemo(() => {
+    if (sortBy === "name") {
+      return [...filteredOrganizations].sort((a, b) =>
+        a.name.localeCompare(b.name, "tr"),
+      );
+    }
+
+    return [...filteredOrganizations].sort((a, b) => {
         const aScore = a.trustScore ?? 0;
         const bScore = b.trustScore ?? 0;
         return bScore - aScore;
-      }),
-    [organizations],
-  );
+      });
+  }, [filteredOrganizations, sortBy]);
 
-  const visibleOrganizations = sortedOrganizations.slice(0, visibleCount);
-  const hasMore = visibleCount < sortedOrganizations.length;
-  const remaining = sortedOrganizations.length - visibleCount;
-  const nextBatch = Math.min(LOAD_BATCH, Math.max(remaining, 0));
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, sortBy, cardsPerPage]);
 
-  const handleShowMore = () => {
-    if (isLoadingMore || !hasMore) return;
-    setIsLoadingMore(true);
-    window.setTimeout(() => {
-      setVisibleCount((prev) =>
-        Math.min(prev + LOAD_BATCH, sortedOrganizations.length),
-      );
-      setIsLoadingMore(false);
-    }, 360);
-  };
+  const totalPages = Math.max(1, Math.ceil(sortedOrganizations.length / cardsPerPage));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (safeCurrentPage - 1) * cardsPerPage;
+  const endIndex = startIndex + cardsPerPage;
+  const visibleOrganizations = sortedOrganizations.slice(startIndex, endIndex);
 
   return (
     <main className="bg-[#FAFBF9] pb-24 pt-8 text-[#1F2937]">
@@ -70,8 +92,35 @@ export function OrganizationsShowcase({
         </section>
 
         <section className="mt-10">
-          <p className="text-sm font-medium text-[#6B7280]">
-            {visibleOrganizations.length} kurum listeleniyor
+          <div className="grid gap-3 md:grid-cols-[1fr_220px]">
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-text-secondary">
+                Kurum ara
+              </span>
+              <input
+                type="text"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Kurum adına göre ara…"
+                className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm text-text-primary outline-none transition focus:border-brand-primary"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-text-secondary">
+                Sırala
+              </span>
+              <select
+                value={sortBy}
+                onChange={(event) => setSortBy(event.target.value as SortType)}
+                className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm text-text-primary outline-none transition focus:border-brand-primary"
+              >
+                <option value="default">Varsayılan</option>
+                <option value="name">İsim (A-Z)</option>
+              </select>
+            </label>
+          </div>
+          <p className="mt-3 text-sm font-medium text-[#6B7280]">
+            Toplam {sortedOrganizations.length} kurum • Sayfa {safeCurrentPage}/{totalPages}
           </p>
         </section>
 
@@ -134,43 +183,27 @@ export function OrganizationsShowcase({
               </article>
             );
           })}
-
-          {isLoadingMore
-            ? Array.from({ length: nextBatch || LOAD_BATCH }).map((_, index) => (
-                <article
-                  key={`skeleton-${index}`}
-                  className="flex h-full animate-pulse flex-col rounded-2xl bg-white p-6 shadow-sm"
-                >
-                  <div className="flex items-start gap-4">
-                    <div className="h-12 w-12 rounded-xl bg-slate-200" />
-                    <div className="min-w-0 flex-1">
-                      <div className="h-5 w-2/3 rounded bg-slate-200" />
-                      <div className="mt-2 h-4 w-1/2 rounded bg-slate-200" />
-                    </div>
-                  </div>
-                  <div className="mt-4 h-4 w-full rounded bg-slate-200" />
-                  <div className="mt-2 h-4 w-4/5 rounded bg-slate-200" />
-                  <div className="mt-6 h-4 w-24 rounded bg-slate-200" />
-                </article>
-              ))
-            : null}
         </section>
 
         <section className="mt-10 flex justify-center">
-          {hasMore ? (
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleShowMore}
-              disabled={isLoadingMore}
-              className="inline-flex min-h-11 items-center justify-center rounded-md border border-emerald-700/35 bg-white/80 px-6 text-sm font-semibold text-emerald-800 transition hover:border-emerald-700 hover:bg-emerald-50/40 disabled:cursor-not-allowed disabled:opacity-70"
+              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+              disabled={safeCurrentPage <= 1}
+              className="inline-flex min-h-11 items-center justify-center rounded-md border border-emerald-700/35 bg-white/80 px-4 text-sm font-semibold text-emerald-800 transition hover:border-emerald-700 hover:bg-emerald-50/40 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isLoadingMore ? "Yükleniyor..." : `+${nextBatch} kurum daha göster`}
+              Önceki
             </button>
-          ) : (
-            <p className="text-sm font-medium text-[#6B7280]">
-              Tüm kurumlar gösteriliyor
-            </p>
-          )}
+            <button
+              type="button"
+              onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+              disabled={safeCurrentPage >= totalPages}
+              className="inline-flex min-h-11 items-center justify-center rounded-md border border-emerald-700/35 bg-white/80 px-4 text-sm font-semibold text-emerald-800 transition hover:border-emerald-700 hover:bg-emerald-50/40 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Sonraki
+            </button>
+          </div>
         </section>
 
         <section className="mt-16">
