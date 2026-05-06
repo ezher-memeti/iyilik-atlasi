@@ -1,4 +1,4 @@
-const ADMIN_TEXT_PATTERN = /^[A-Za-z0-9ÇĞİÖŞÜçğıöşü\s_+\-\/:;!?\\#=.,()]+$/;
+const ADMIN_TEXT_PATTERN = /^[A-Za-z0-9ÇĞİÖŞÜçğıöşü\s_+\-\/:;!?\\#=.,()'""]+$/;
 
 export function isAllowedAdminText(value: string) {
   const trimmed = value.trim();
@@ -7,5 +7,5 @@ export function isAllowedAdminText(value: string) {
 }
 
 export function getAdminTextValidationMessage(fieldLabel: string) {
-  return `${fieldLabel} sadece Türkçe/İngilizce harf, rakam, boşluk ve şu karakterleri içerebilir: _ + - / : ; ! ? \\\\ # = . , ( ).`;
+  return `${fieldLabel} sadece Türkçe/İngilizce harf, rakam, boşluk ve şu karakterleri içerebilir: _ + - / : ; ! ? \\\\ # = . , ( ) ' ".`;
 }
