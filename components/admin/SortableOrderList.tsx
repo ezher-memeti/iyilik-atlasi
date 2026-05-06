@@ -16,7 +16,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 export type SortableListItem = {
   id: number;
@@ -48,6 +48,7 @@ function SortableRow({
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
     id: item.id,
   });
+  const [showDetails, setShowDetails] = useState(false);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -79,18 +80,31 @@ function SortableRow({
           <p className="text-sm font-semibold text-text-primary">
             {item.primary}
           </p>
-          {item.secondary ? (
-            <p className="mt-1 text-sm text-text-secondary">{item.secondary}</p>
-          ) : null}
-          {item.link ? (
-            <a
-              href={item.link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-1 inline-flex text-sm font-medium text-brand-primary hover:text-brand-secondary"
+          {item.secondary || item.link ? (
+            <button
+              type="button"
+              onClick={() => setShowDetails((current) => !current)}
+              className="mt-2 inline-flex text-xs font-semibold text-brand-primary transition hover:text-brand-secondary"
             >
-              {item.link}
-            </a>
+              {showDetails ? "Detayı Gizle" : "Detay"}
+            </button>
+          ) : null}
+          {showDetails ? (
+            <>
+              {item.secondary ? (
+                <p className="mt-1 text-sm text-text-secondary">{item.secondary}</p>
+              ) : null}
+              {item.link ? (
+                <a
+                  href={item.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1 inline-flex text-sm font-medium text-brand-primary hover:text-brand-secondary"
+                >
+                  {item.link}
+                </a>
+              ) : null}
+            </>
           ) : null}
         </div>
 

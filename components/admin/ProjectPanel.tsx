@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { SortableOrderList, type SortableListItem } from "@/components/admin/SortableOrderList";
 import {
@@ -50,7 +50,10 @@ const INITIAL_FORM = {
 
 export function ProjectPanel() {
   const supabase = createClient();
-  const hasActiveFilter = false;
+  const formSectionRef = useRef<HTMLElement | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [ngoFilter, setNgoFilter] = useState("all");
+  const [regionFilter, setRegionFilter] = useState("all");
 
   const [ngos, setNgos] = useState<NgoOption[]>([]);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
@@ -77,6 +80,16 @@ export function ProjectPanel() {
 
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{
+    title?: string;
+    price?: string;
+    donationUrl?: string;
+    ngoId?: string;
+    categories?: string;
+  }>({});
+  const [initialFormState, setInitialFormState] = useState({
+    ...INITIAL_FORM,
+  });
 
   const isEditMode = editingProjectId !== null;
   const titleText = useMemo(
@@ -87,6 +100,44 @@ export function ProjectPanel() {
     if (originalItems.length !== reorderedItems.length) return true;
     return reorderedItems.some((item, index) => item.id !== originalItems[index]?.id);
   }, [originalItems, reorderedItems]);
+  const hasActiveFilter =
+    searchQuery.trim().length > 0 || ngoFilter !== "all" || regionFilter !== "all";
+  const hasFormChanges = useMemo(() => {
+    const normalizeList = (values: number[]) => [...values].sort((a, b) => a - b).join(",");
+    return (
+      title.trim() !== initialFormState.title.trim() ||
+      price.trim() !== initialFormState.price.trim() ||
+      donationUrl.trim() !== initialFormState.donationUrl.trim() ||
+      ngoId.trim() !== initialFormState.ngoId.trim() ||
+      normalizeList(selectedRegionIds) !== normalizeList(initialFormState.selectedRegionIds) ||
+      normalizeList(selectedCategoryIds) !== normalizeList(initialFormState.selectedCategoryIds)
+    );
+  }, [
+    donationUrl,
+    initialFormState,
+    ngoId,
+    price,
+    selectedCategoryIds,
+    selectedRegionIds,
+    title,
+  ]);
+
+  const filteredReorderedItems = useMemo(() => {
+    const query = searchQuery.trim().toLocaleLowerCase("tr-TR");
+    const projectById = new Map(projects.map((project) => [project.id, project]));
+    return reorderedItems.filter((item) => {
+      const project = projectById.get(item.id);
+      if (!project) return false;
+      const matchesQuery =
+        !query ||
+        project.title.toLocaleLowerCase("tr-TR").includes(query) ||
+        (project.ngo?.name ?? "").toLocaleLowerCase("tr-TR").includes(query);
+      const matchesNgo = ngoFilter === "all" || String(project.ngo_id) === ngoFilter;
+      const matchesRegion =
+        regionFilter === "all" || project.regions.some((region) => String(region.id) === regionFilter);
+      return matchesQuery && matchesNgo && matchesRegion;
+    });
+  }, [ngoFilter, projects, regionFilter, reorderedItems, searchQuery]);
 
   async function loadData() {
     try {
@@ -186,6 +237,16 @@ export function ProjectPanel() {
     loadData();
   }, [editingProjectId, isDeletingId]);
 
+  useEffect(() => {
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!hasFormChanges) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [hasFormChanges]);
+
   function resetForm() {
     setTitle(INITIAL_FORM.title);
     setPrice(INITIAL_FORM.price);
@@ -194,6 +255,8 @@ export function ProjectPanel() {
     setSelectedRegionIds(INITIAL_FORM.selectedRegionIds);
     setSelectedCategoryIds(INITIAL_FORM.selectedCategoryIds);
     setEditingProjectId(null);
+    setFieldErrors({});
+    setInitialFormState({ ...INITIAL_FORM });
   }
 
   function toggleCategory(id: number) {
@@ -218,9 +281,16 @@ export function ProjectPanel() {
   }
 
   async function handleEdit(project: ProjectListItem) {
+    if (hasFormChanges) {
+      const confirmed = window.confirm(
+        "Kaydedilmemiş değişiklikler var. Düzenlemeye geçmek istiyor musunuz?",
+      );
+      if (!confirmed) return;
+    }
     try {
       setMessage(null);
       setError(null);
+      setFieldErrors({});
       setIsSaving(true);
 
       const { data, error: relationError } = await supabase
@@ -246,6 +316,17 @@ export function ProjectPanel() {
       setNgoId(String(project.ngo_id));
       setSelectedRegionIds(Array.from(new Set(regionIds)));
       setSelectedCategoryIds(categoryIds);
+      setInitialFormState({
+        title: project.title ?? "",
+        price: project.price !== null ? String(project.price) : "",
+        donationUrl: project.donation_url ?? "",
+        ngoId: String(project.ngo_id),
+        selectedRegionIds: Array.from(new Set(regionIds)),
+        selectedCategoryIds: categoryIds,
+      });
+      requestAnimationFrame(() => {
+        formSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
     } catch (editError) {
       console.error(editError);
       setError("Proje düzenleme verileri yüklenemedi.");
@@ -255,6 +336,12 @@ export function ProjectPanel() {
   }
 
   function handleCancelEdit() {
+    if (hasFormChanges) {
+      const confirmed = window.confirm(
+        "Kaydedilmemiş değişiklikler var. Düzenlemeyi iptal etmek istiyor musunuz?",
+      );
+      if (!confirmed) return;
+    }
     resetForm();
     setMessage(null);
     setError(null);
@@ -264,41 +351,49 @@ export function ProjectPanel() {
     event.preventDefault();
     setMessage(null);
     setError(null);
+    setFieldErrors({});
 
     const trimmedTitle = title.trim();
     const trimmedUrl = donationUrl.trim();
     const parsedPrice = Number(price);
 
     if (!trimmedTitle) {
+      setFieldErrors({ title: "Proje başlığı zorunludur." });
       setError("Proje başlığı zorunludur.");
       return;
     }
     if (!isAllowedAdminText(trimmedTitle)) {
+      setFieldErrors({ title: getAdminTextValidationMessage("Proje başlığı") });
       setError(getAdminTextValidationMessage("Proje başlığı"));
       return;
     }
 
     if (!ngoId) {
+      setFieldErrors({ ngoId: "Lütfen bir kurum seçin." });
       setError("Lütfen bir kurum seçin.");
       return;
     }
 
     if (Number.isNaN(parsedPrice)) {
+      setFieldErrors({ price: "Tutar geçerli bir sayı olmalıdır." });
       setError("Tutar geçerli bir sayı olmalıdır.");
       return;
     }
 
     if (!trimmedUrl) {
+      setFieldErrors({ donationUrl: "Bağış URL'si zorunludur." });
       setError("Bağış URL'si zorunludur.");
       return;
     }
 
     if (!validateDonationUrl(trimmedUrl)) {
+      setFieldErrors({ donationUrl: "Bağış URL'si geçerli bir bağlantı olmalıdır." });
       setError("Bağış URL'si geçerli bir bağlantı olmalıdır.");
       return;
     }
 
     if (selectedCategoryIds.length < 1) {
+      setFieldErrors({ categories: "Lütfen en az 1 kategori seçin." });
       setError("Lütfen en az 1 kategori seçin.");
       return;
     }
@@ -374,6 +469,7 @@ export function ProjectPanel() {
       }
 
       setMessage(isEditMode ? "Proje güncellendi." : "Proje oluşturuldu.");
+      setInitialFormState({ ...INITIAL_FORM });
       resetForm();
       await loadData();
     } catch (submitError) {
@@ -385,6 +481,12 @@ export function ProjectPanel() {
   }
 
   async function handleDelete(projectId: number) {
+    if (hasFormChanges) {
+      const proceed = window.confirm(
+        "Kaydedilmemiş değişiklikler var. Silme işlemine devam etmek istiyor musunuz?",
+      );
+      if (!proceed) return;
+    }
     const confirmed = window.confirm("Bu projeyi silmek istediğinize emin misiniz?");
     if (!confirmed) return;
 
@@ -457,7 +559,10 @@ export function ProjectPanel() {
 
   return (
     <section className="space-y-6 md:space-y-8">
-      <section className="rounded-xl border border-divider-softLight bg-surface-pageLight p-4 md:p-6">
+      <section
+        ref={formSectionRef}
+        className="rounded-xl border border-divider-softLight bg-surface-pageLight p-4 md:p-6"
+      >
         <h2 className="text-xl font-semibold text-text-primary">
           {titleText}
         </h2>
@@ -466,6 +571,11 @@ export function ProjectPanel() {
             ? "Proje bilgilerini güncelleyip kategorileri yeniden bağlayın."
             : "Proje kaydı ekleyin ve kategorilerle ilişkilendirin."}
         </p>
+        {hasFormChanges ? (
+          <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+            Kaydedilmemiş değişiklikler var.
+          </p>
+        ) : null}
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
@@ -481,6 +591,7 @@ export function ProjectPanel() {
                 placeholder="Proje başlığı"
                 disabled={isSaving}
               />
+              {fieldErrors.title ? <p className="mt-1 text-xs text-red-600">{fieldErrors.title}</p> : null}
             </div>
 
             <div>
@@ -496,6 +607,7 @@ export function ProjectPanel() {
                 placeholder="0"
                 disabled={isSaving}
               />
+              {fieldErrors.price ? <p className="mt-1 text-xs text-red-600">{fieldErrors.price}</p> : null}
             </div>
           </div>
 
@@ -512,6 +624,9 @@ export function ProjectPanel() {
               placeholder="https://example.org/donate"
               disabled={isSaving}
             />
+            {fieldErrors.donationUrl ? (
+              <p className="mt-1 text-xs text-red-600">{fieldErrors.donationUrl}</p>
+            ) : null}
           </div>
 
           <div>
@@ -532,6 +647,7 @@ export function ProjectPanel() {
                 </option>
               ))}
             </select>
+            {fieldErrors.ngoId ? <p className="mt-1 text-xs text-red-600">{fieldErrors.ngoId}</p> : null}
           </div>
 
           <fieldset>
@@ -572,6 +688,9 @@ export function ProjectPanel() {
                 </label>
               ))}
             </div>
+            {fieldErrors.categories ? (
+              <p className="mt-1 text-xs text-red-600">{fieldErrors.categories}</p>
+            ) : null}
           </fieldset>
 
           <div className="sticky bottom-0 z-10 -mx-4 flex flex-col gap-2 border-t border-divider-softLight bg-surface-pageLight px-4 py-3 sm:mx-0 sm:flex-row sm:items-center sm:border-t-0 sm:bg-transparent sm:px-0 sm:py-0">
@@ -617,15 +736,63 @@ export function ProjectPanel() {
             </span>
           ) : null}
         </div>
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-text-secondary">Ara</span>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Proje veya kurum..."
+              className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm outline-none focus:border-brand-primary"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-text-secondary">Kurum</span>
+            <select
+              value={ngoFilter}
+              onChange={(event) => setNgoFilter(event.target.value)}
+              className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm outline-none focus:border-brand-primary"
+            >
+              <option value="all">Tümü</option>
+              {ngos.map((ngo) => (
+                <option key={ngo.id} value={ngo.id}>
+                  {ngo.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-text-secondary">Bölge</span>
+            <select
+              value={regionFilter}
+              onChange={(event) => setRegionFilter(event.target.value)}
+              className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm outline-none focus:border-brand-primary"
+            >
+              <option value="all">Tümü</option>
+              {regions.map((region) => (
+                <option key={region.id} value={region.id}>
+                  {region.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
 
         {isLoading ? (
           <p className="mt-3 text-sm text-text-secondary">Projeler yükleniyor...</p>
-        ) : reorderedItems.length === 0 ? (
+        ) : filteredReorderedItems.length === 0 ? (
           <p className="mt-3 text-sm text-text-secondary">Henüz proje bulunmuyor.</p>
         ) : (
           <>
             <div className="mt-4">
-              <SortableOrderList items={reorderedItems} onReorder={setReorderedItems} />
+              <SortableOrderList
+                items={hasActiveFilter ? filteredReorderedItems : reorderedItems}
+                onReorder={(items) => {
+                  if (hasActiveFilter) return;
+                  setReorderedItems(items);
+                }}
+              />
             </div>
             <div className="sticky bottom-0 z-10 mt-4 -mx-4 flex gap-2 border-t border-divider-softLight bg-surface-pageLight px-4 py-3 sm:mx-0 sm:justify-end sm:border-t-0 sm:bg-transparent sm:px-0 sm:py-0">
               <button

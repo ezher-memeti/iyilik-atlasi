@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { SortableOrderList, type SortableListItem } from "@/components/admin/SortableOrderList";
 import {
@@ -20,7 +20,8 @@ const INITIAL_DESCRIPTION = "";
 
 export function CategoryPanel() {
   const supabase = createClient();
-  const hasActiveFilter = false;
+  const formSectionRef = useRef<HTMLElement | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [name, setName] = useState(INITIAL_NAME);
   const [description, setDescription] = useState(INITIAL_DESCRIPTION);
@@ -34,6 +35,11 @@ export function CategoryPanel() {
   const [isSavingOrder, setIsSavingOrder] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; description?: string }>({});
+  const [initialFormState, setInitialFormState] = useState({
+    name: INITIAL_NAME,
+    description: INITIAL_DESCRIPTION,
+  });
 
   const isEditMode = editingCategoryId !== null;
   const title = useMemo(
@@ -45,6 +51,13 @@ export function CategoryPanel() {
     if (originalItems.length !== reorderedItems.length) return true;
     return reorderedItems.some((item, index) => item.id !== originalItems[index]?.id);
   }, [originalItems, reorderedItems]);
+  const hasActiveFilter = searchQuery.trim().length > 0;
+  const hasFormChanges = useMemo(
+    () =>
+      name.trim() !== initialFormState.name.trim() ||
+      description.trim() !== initialFormState.description.trim(),
+    [description, initialFormState.description, initialFormState.name, name],
+  );
 
   async function loadCategories() {
     try {
@@ -98,21 +111,71 @@ export function CategoryPanel() {
     loadCategories();
   }, [editingCategoryId, isDeletingId]);
 
+  useEffect(() => {
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!hasFormChanges) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [hasFormChanges]);
+
+  const filteredReorderedItems = useMemo(() => {
+    const query = searchQuery.trim().toLocaleLowerCase("tr-TR");
+    if (!query) return reorderedItems;
+
+    const categoryById = new Map(categories.map((category) => [category.id, category]));
+    return reorderedItems.filter((item) => {
+      const category = categoryById.get(item.id);
+      if (!category) return false;
+      return (
+        category.name.toLocaleLowerCase("tr-TR").includes(query) ||
+        (category.description ?? "").toLocaleLowerCase("tr-TR").includes(query)
+      );
+    });
+  }, [categories, reorderedItems, searchQuery]);
+
   function resetForm() {
     setName(INITIAL_NAME);
     setDescription(INITIAL_DESCRIPTION);
     setEditingCategoryId(null);
+    setFieldErrors({});
+    setInitialFormState({
+      name: INITIAL_NAME,
+      description: INITIAL_DESCRIPTION,
+    });
   }
 
   function handleEdit(category: CategoryItem) {
+    if (hasFormChanges) {
+      const confirmed = window.confirm(
+        "Kaydedilmemiş değişiklikler var. Düzenlemeye geçmek istiyor musunuz?",
+      );
+      if (!confirmed) return;
+    }
     setMessage(null);
     setError(null);
+    setFieldErrors({});
     setEditingCategoryId(category.id);
     setName(category.name);
     setDescription(category.description ?? "");
+    setInitialFormState({
+      name: category.name ?? "",
+      description: category.description ?? "",
+    });
+    requestAnimationFrame(() => {
+      formSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   }
 
   function handleCancelEdit() {
+    if (hasFormChanges) {
+      const confirmed = window.confirm(
+        "Kaydedilmemiş değişiklikler var. Düzenlemeyi iptal etmek istiyor musunuz?",
+      );
+      if (!confirmed) return;
+    }
     resetForm();
     setMessage(null);
     setError(null);
@@ -122,22 +185,27 @@ export function CategoryPanel() {
     event.preventDefault();
     setMessage(null);
     setError(null);
+    setFieldErrors({});
 
     const trimmed = name.trim();
     const trimmedDescription = description.trim();
     if (!trimmed) {
+      setFieldErrors({ name: "Kategori adı zorunludur." });
       setError("Kategori adı zorunludur.");
       return;
     }
     if (!isAllowedAdminText(trimmed)) {
+      setFieldErrors({ name: getAdminTextValidationMessage("Kategori adı") });
       setError(getAdminTextValidationMessage("Kategori adı"));
       return;
     }
     if (trimmedDescription && !isAllowedAdminText(trimmedDescription)) {
+      setFieldErrors({ description: getAdminTextValidationMessage("Kategori açıklaması") });
       setError(getAdminTextValidationMessage("Kategori açıklaması"));
       return;
     }
     if (trimmedDescription.length > 200) {
+      setFieldErrors({ description: "Kategori açıklaması en fazla 200 karakter olabilir." });
       setError("Kategori açıklaması en fazla 200 karakter olabilir.");
       return;
     }
@@ -166,6 +234,10 @@ export function CategoryPanel() {
         setMessage("Kategori oluşturuldu.");
       }
 
+      setInitialFormState({
+        name: INITIAL_NAME,
+        description: INITIAL_DESCRIPTION,
+      });
       resetForm();
       await loadCategories();
     } catch (submitError) {
@@ -177,6 +249,12 @@ export function CategoryPanel() {
   }
 
   async function handleDelete(id: number) {
+    if (hasFormChanges) {
+      const proceed = window.confirm(
+        "Kaydedilmemiş değişiklikler var. Silme işlemine devam etmek istiyor musunuz?",
+      );
+      if (!proceed) return;
+    }
     const confirmed = window.confirm("Bu kategoriyi silmek istediğinize emin misiniz?");
     if (!confirmed) return;
 
@@ -236,7 +314,10 @@ export function CategoryPanel() {
 
   return (
     <section className="space-y-6 md:space-y-8">
-      <section className="rounded-xl border border-divider-softLight bg-surface-pageLight p-4 md:p-6">
+      <section
+        ref={formSectionRef}
+        className="rounded-xl border border-divider-softLight bg-surface-pageLight p-4 md:p-6"
+      >
         <h2 className="text-xl font-semibold text-text-primary">
           {title}
         </h2>
@@ -245,6 +326,11 @@ export function CategoryPanel() {
             ? "Kategori adını güncelleyip değişiklikleri kaydedin."
             : "Yeni bir kategori ekleyin."}
         </p>
+        {hasFormChanges ? (
+          <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+            Kaydedilmemiş değişiklikler var.
+          </p>
+        ) : null}
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">
           <div>
@@ -259,6 +345,7 @@ export function CategoryPanel() {
               placeholder="Kategori adı"
               disabled={isSaving}
             />
+            {fieldErrors.name ? <p className="mt-1 text-xs text-red-600">{fieldErrors.name}</p> : null}
           </div>
 
           <div>
@@ -275,6 +362,9 @@ export function CategoryPanel() {
               disabled={isSaving}
             />
             <p className="mt-1 text-xs text-text-secondary">{description.length}/200</p>
+            {fieldErrors.description ? (
+              <p className="mt-1 text-xs text-red-600">{fieldErrors.description}</p>
+            ) : null}
           </div>
 
           <div className="sticky bottom-0 z-10 -mx-4 flex flex-col gap-2 border-t border-divider-softLight bg-surface-pageLight px-4 py-3 sm:mx-0 sm:flex-row sm:items-center sm:border-t-0 sm:bg-transparent sm:px-0 sm:py-0">
@@ -320,15 +410,33 @@ export function CategoryPanel() {
             </span>
           ) : null}
         </div>
+        <div className="mt-3">
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-text-secondary">Ara</span>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Kategori adı veya açıklaması..."
+              className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm outline-none focus:border-brand-primary"
+            />
+          </label>
+        </div>
 
         {isLoading ? (
           <p className="mt-3 text-sm text-text-secondary">Kategoriler yükleniyor...</p>
-        ) : reorderedItems.length === 0 ? (
+        ) : filteredReorderedItems.length === 0 ? (
           <p className="mt-3 text-sm text-text-secondary">Henüz kategori bulunmuyor.</p>
         ) : (
           <>
             <div className="mt-4">
-              <SortableOrderList items={reorderedItems} onReorder={setReorderedItems} />
+              <SortableOrderList
+                items={hasActiveFilter ? filteredReorderedItems : reorderedItems}
+                onReorder={(items) => {
+                  if (hasActiveFilter) return;
+                  setReorderedItems(items);
+                }}
+              />
             </div>
             <div className="sticky bottom-0 z-10 mt-4 -mx-4 flex gap-2 border-t border-divider-softLight bg-surface-pageLight px-4 py-3 sm:mx-0 sm:justify-end sm:border-t-0 sm:bg-transparent sm:px-0 sm:py-0">
               <button

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { SortableOrderList, type SortableListItem } from "@/components/admin/SortableOrderList";
 import {
@@ -42,7 +42,9 @@ function extractRegionName(
 
 export function NgoPanel() {
   const supabase = createClient();
-  const hasActiveFilter = false;
+  const formSectionRef = useRef<HTMLElement | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [regionFilter, setRegionFilter] = useState("all");
 
   const [ngos, setNgos] = useState<NgoItem[]>([]);
   const [regions, setRegions] = useState<RegionOption[]>([]);
@@ -62,6 +64,16 @@ export function NgoPanel() {
 
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{
+    name?: string;
+    description?: string;
+    websiteUrl?: string;
+    logoUrl?: string;
+  }>({});
+  const [initialFormState, setInitialFormState] = useState({
+    ...INITIAL_FORM,
+    selectedRegionIds: [] as number[],
+  });
 
   const isEditMode = editingNgoId !== null;
   const sectionTitle = useMemo(
@@ -72,6 +84,41 @@ export function NgoPanel() {
     if (originalItems.length !== reorderedItems.length) return true;
     return reorderedItems.some((item, index) => item.id !== originalItems[index]?.id);
   }, [originalItems, reorderedItems]);
+  const hasActiveFilter = searchQuery.trim().length > 0 || regionFilter !== "all";
+  const hasFormChanges = useMemo(() => {
+    const initialRegionKey = [...initialFormState.selectedRegionIds].sort((a, b) => a - b).join(",");
+    const currentRegionKey = [...selectedRegionIds].sort((a, b) => a - b).join(",");
+    return (
+      name.trim() !== initialFormState.name.trim() ||
+      description.trim() !== initialFormState.description.trim() ||
+      websiteUrl.trim() !== initialFormState.websiteUrl.trim() ||
+      logoUrl.trim() !== initialFormState.logoUrl.trim() ||
+      initialRegionKey !== currentRegionKey
+    );
+  }, [description, initialFormState, logoUrl, name, selectedRegionIds, websiteUrl]);
+
+  const filteredReorderedItems = useMemo(() => {
+    const query = searchQuery.trim().toLocaleLowerCase("tr-TR");
+    const ngoById = new Map(ngos.map((ngo) => [ngo.id, ngo]));
+
+    return reorderedItems.filter((item) => {
+      const ngo = ngoById.get(item.id);
+      if (!ngo) return false;
+      const ngoRegionNames = (ngo.ngo_bolge ?? [])
+        .map((region) => extractRegionName(region.bolge))
+        .filter((name): name is string => Boolean(name));
+      const matchesQuery =
+        !query ||
+        ngo.name.toLocaleLowerCase("tr-TR").includes(query) ||
+        (ngo.description ?? "").toLocaleLowerCase("tr-TR").includes(query);
+      const matchesRegion =
+        regionFilter === "all" ||
+        ngoRegionNames.some(
+          (name) => name.toLocaleLowerCase("tr-TR") === regionFilter.toLocaleLowerCase("tr-TR"),
+        );
+      return matchesQuery && matchesRegion;
+    });
+  }, [ngos, regionFilter, reorderedItems, searchQuery]);
 
   async function loadNgos() {
     try {
@@ -145,6 +192,16 @@ export function NgoPanel() {
     loadNgos();
   }, [editingNgoId, isDeletingId]);
 
+  useEffect(() => {
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!hasFormChanges) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [hasFormChanges]);
+
   function resetForm() {
     setName(INITIAL_FORM.name);
     setDescription(INITIAL_FORM.description);
@@ -152,6 +209,11 @@ export function NgoPanel() {
     setLogoUrl(INITIAL_FORM.logoUrl);
     setSelectedRegionIds([]);
     setEditingNgoId(null);
+    setFieldErrors({});
+    setInitialFormState({
+      ...INITIAL_FORM,
+      selectedRegionIds: [],
+    });
   }
 
   function toggleRegion(regionId: number) {
@@ -164,12 +226,15 @@ export function NgoPanel() {
 
   function validateForm() {
     if (!name.trim()) {
+      setFieldErrors({ name: "Kurum adı zorunludur." });
       return "Kurum adı zorunludur.";
     }
     if (!isAllowedAdminText(name)) {
+      setFieldErrors({ name: getAdminTextValidationMessage("Kurum adı") });
       return getAdminTextValidationMessage("Kurum adı");
     }
     if (description.trim() && !isAllowedAdminText(description)) {
+      setFieldErrors({ description: getAdminTextValidationMessage("Kurum açıklaması") });
       return getAdminTextValidationMessage("Kurum açıklaması");
     }
 
@@ -177,9 +242,11 @@ export function NgoPanel() {
       try {
         const parsed = new URL(websiteUrl.trim());
         if (!["https:", "http:"].includes(parsed.protocol)) {
+          setFieldErrors({ websiteUrl: "Web sitesi adresi http:// veya https:// ile başlamalıdır." });
           return "Web sitesi adresi http:// veya https:// ile başlamalıdır.";
         }
       } catch {
+        setFieldErrors({ websiteUrl: "Web sitesi adresi geçerli bir URL olmalıdır." });
         return "Web sitesi adresi geçerli bir URL olmalıdır.";
       }
     }
@@ -188,9 +255,11 @@ export function NgoPanel() {
       try {
         const parsed = new URL(logoUrl.trim());
         if (!["https:", "http:"].includes(parsed.protocol)) {
+          setFieldErrors({ logoUrl: "Logo URL adresi http:// veya https:// ile başlamalıdır." });
           return "Logo URL adresi http:// veya https:// ile başlamalıdır.";
         }
       } catch {
+        setFieldErrors({ logoUrl: "Logo URL adresi geçerli bir URL olmalıdır." });
         return "Logo URL adresi geçerli bir URL olmalıdır.";
       }
     }
@@ -199,8 +268,15 @@ export function NgoPanel() {
   }
 
   async function handleEdit(ngo: NgoItem) {
+    if (hasFormChanges) {
+      const confirmed = window.confirm(
+        "Kaydedilmemiş değişiklikler var. Düzenlemeye geçmek istiyor musunuz?",
+      );
+      if (!confirmed) return;
+    }
     setMessage(null);
     setError(null);
+    setFieldErrors({});
     try {
       setIsSaving(true);
       const { data, error: relationError } = await supabase
@@ -214,7 +290,18 @@ export function NgoPanel() {
       setDescription(ngo.description ?? "");
       setWebsiteUrl(ngo.website_url ?? "");
       setLogoUrl(ngo.logo_url ?? "");
-      setSelectedRegionIds(((data ?? []) as NgoBolgeRow[]).map((item) => item.bolge_id));
+      const nextRegionIds = ((data ?? []) as NgoBolgeRow[]).map((item) => item.bolge_id);
+      setSelectedRegionIds(nextRegionIds);
+      setInitialFormState({
+        name: ngo.name ?? "",
+        description: ngo.description ?? "",
+        websiteUrl: ngo.website_url ?? "",
+        logoUrl: ngo.logo_url ?? "",
+        selectedRegionIds: nextRegionIds,
+      });
+      requestAnimationFrame(() => {
+        formSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
     } catch (editError) {
       console.error(editError);
       setError("Kurum bölge bilgileri yüklenemedi.");
@@ -224,6 +311,12 @@ export function NgoPanel() {
   }
 
   function handleCancelEdit() {
+    if (hasFormChanges) {
+      const confirmed = window.confirm(
+        "Kaydedilmemiş değişiklikler var. Düzenlemeyi iptal etmek istiyor musunuz?",
+      );
+      if (!confirmed) return;
+    }
     resetForm();
     setMessage(null);
     setError(null);
@@ -233,6 +326,7 @@ export function NgoPanel() {
     event.preventDefault();
     setMessage(null);
     setError(null);
+    setFieldErrors({});
 
     const validationError = validateForm();
     if (validationError) {
@@ -308,6 +402,12 @@ export function NgoPanel() {
   }
 
   async function handleDelete(id: number) {
+    if (hasFormChanges) {
+      const proceed = window.confirm(
+        "Kaydedilmemiş değişiklikler var. Silme işlemine devam etmek istiyor musunuz?",
+      );
+      if (!proceed) return;
+    }
     const confirmed = window.confirm("Bu kurumu silmek istediğinize emin misiniz?");
     if (!confirmed) return;
 
@@ -368,7 +468,10 @@ export function NgoPanel() {
 
   return (
     <section className="space-y-6 md:space-y-8">
-      <section className="rounded-xl border border-divider-softLight bg-surface-pageLight p-4 md:p-6">
+      <section
+        ref={formSectionRef}
+        className="rounded-xl border border-divider-softLight bg-surface-pageLight p-4 md:p-6"
+      >
         <h2 className="text-xl font-semibold text-text-primary">
           {sectionTitle}
         </h2>
@@ -377,6 +480,11 @@ export function NgoPanel() {
             ? "Kurum bilgilerini güncelleyip değişiklikleri kaydedin."
             : "Sisteme yeni bir kurum kaydı ekleyin."}
         </p>
+        {hasFormChanges ? (
+          <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+            Kaydedilmemiş değişiklikler var.
+          </p>
+        ) : null}
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">
           <div>
@@ -391,6 +499,7 @@ export function NgoPanel() {
               placeholder="Kurum adı"
               disabled={isSaving}
             />
+            {fieldErrors.name ? <p className="mt-1 text-xs text-red-600">{fieldErrors.name}</p> : null}
           </div>
 
           <div>
@@ -405,6 +514,9 @@ export function NgoPanel() {
               placeholder="Kısa kurum açıklaması"
               disabled={isSaving}
             />
+            {fieldErrors.description ? (
+              <p className="mt-1 text-xs text-red-600">{fieldErrors.description}</p>
+            ) : null}
           </div>
 
           <div>
@@ -420,6 +532,9 @@ export function NgoPanel() {
               placeholder="https://example.org"
               disabled={isSaving}
             />
+            {fieldErrors.websiteUrl ? (
+              <p className="mt-1 text-xs text-red-600">{fieldErrors.websiteUrl}</p>
+            ) : null}
           </div>
 
           <div>
@@ -435,6 +550,9 @@ export function NgoPanel() {
               placeholder="https://example.com/logo.png"
               disabled={isSaving}
             />
+            {fieldErrors.logoUrl ? (
+              <p className="mt-1 text-xs text-red-600">{fieldErrors.logoUrl}</p>
+            ) : null}
           </div>
 
           <fieldset>
@@ -500,15 +618,48 @@ export function NgoPanel() {
             </span>
           ) : null}
         </div>
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-text-secondary">Ara</span>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Kurum adı veya açıklaması..."
+              className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm outline-none focus:border-brand-primary"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-text-secondary">Bölge</span>
+            <select
+              value={regionFilter}
+              onChange={(event) => setRegionFilter(event.target.value)}
+              className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm outline-none focus:border-brand-primary"
+            >
+              <option value="all">Tümü</option>
+              {regions.map((region) => (
+                <option key={region.id} value={region.name}>
+                  {region.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
 
         {isLoading ? (
           <p className="mt-3 text-sm text-text-secondary">Kurumlar yükleniyor...</p>
-        ) : reorderedItems.length === 0 ? (
+        ) : filteredReorderedItems.length === 0 ? (
           <p className="mt-3 text-sm text-text-secondary">Henüz kurum bulunmuyor.</p>
         ) : (
           <>
             <div className="mt-4">
-              <SortableOrderList items={reorderedItems} onReorder={setReorderedItems} />
+              <SortableOrderList
+                items={hasActiveFilter ? filteredReorderedItems : reorderedItems}
+                onReorder={(items) => {
+                  if (hasActiveFilter) return;
+                  setReorderedItems(items);
+                }}
+              />
             </div>
             <div className="sticky bottom-0 z-10 mt-4 -mx-4 flex gap-2 border-t border-divider-softLight bg-surface-pageLight px-4 py-3 sm:mx-0 sm:justify-end sm:border-t-0 sm:bg-transparent sm:px-0 sm:py-0">
               <button
