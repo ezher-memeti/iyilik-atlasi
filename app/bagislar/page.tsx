@@ -21,7 +21,14 @@ export const metadata = createSeoMetadata({
   url: "/bagislar",
 });
 
-export default async function DonationsPage() {
+type DonationsPageProps = {
+  searchParams: Promise<{
+    kategori?: string;
+  }>;
+};
+
+export default async function DonationsPage({ searchParams }: DonationsPageProps) {
+  const { kategori } = await searchParams;
   const groups = await getOrganizationGroups();
   const projects = await getAllProjects();
   const categories = await getCategories();
@@ -53,6 +60,7 @@ export default async function DonationsPage() {
         projects={projects}
         categories={categories}
         regions={regions}
+        initialCategory={kategori}
       />
     </main>
   );

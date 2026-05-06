@@ -21,6 +21,7 @@ type KurbanComparisonClientProps = {
   projects: KurbanProjectWithOrganization[];
   categories: Array<{ id: number; name: string }>;
   regions: Array<{ id: number; name: string }>;
+  initialCategory?: string;
 };
 
 type SortType = "price" | "popular" | "az";
@@ -51,11 +52,15 @@ export function KurbanComparisonClient({
   projects,
   categories,
   regions,
+  initialCategory,
 }: KurbanComparisonClientProps) {
   const tabsScrollRef = useRef<HTMLDivElement | null>(null);
+  const categoryButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isCompareOpen, setIsCompareOpen] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState(DEFAULT_CATEGORY);
+  const [selectedCategory, setSelectedCategory] = useState(
+    cleanCategoryLabel(initialCategory ?? "") || DEFAULT_CATEGORY,
+  );
   const [openOrganization, setOpenOrganization] = useState(
     groups[0]?.organization.slug ?? "",
   );
@@ -102,6 +107,32 @@ export function KurbanComparisonClient({
       setSelectedCategory(categoryTabs[0]);
     }
   }, [categoryTabs, selectedCategory]);
+
+  useEffect(() => {
+    const cleanedInitial = cleanCategoryLabel(initialCategory ?? "");
+    if (!cleanedInitial) return;
+    if (normalizeText(cleanedInitial) === normalizeText(selectedCategory)) return;
+
+    setSelectedCategory(cleanedInitial);
+    setSearch(DEFAULT_SEARCH);
+    setPriceFilter(DEFAULT_PRICE_FILTER);
+    setRegionFilter(DEFAULT_REGION_FILTER);
+    setSortBy(DEFAULT_SORT);
+    setDraftSearch(DEFAULT_SEARCH);
+    setDraftPriceFilter(DEFAULT_PRICE_FILTER);
+    setDraftRegionFilter(DEFAULT_REGION_FILTER);
+    setDraftSortBy(DEFAULT_SORT);
+  }, [initialCategory, selectedCategory]);
+
+  useEffect(() => {
+    const selectedButton = categoryButtonRefs.current[selectedCategory];
+    if (!selectedButton) return;
+    selectedButton.scrollIntoView({
+      behavior: "smooth",
+      inline: "center",
+      block: "nearest",
+    });
+  }, [selectedCategory, categoryTabs]);
 
   const selectedProjects = useMemo(
     () => projects.filter((project) => selectedIds.includes(project.id)),
@@ -391,6 +422,9 @@ export function KurbanComparisonClient({
                     key={tab}
                     type="button"
                     onClick={() => handleCategoryChange(tab)}
+                    ref={(el) => {
+                      categoryButtonRefs.current[tab] = el;
+                    }}
                     className={`-mb-px border-b-2 px-1 py-3 text-sm font-semibold transition-colors duration-200 ${
                       isActive
                         ? "border-brand-primary text-brand-primary"
