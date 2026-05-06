@@ -21,6 +21,7 @@ import { useState, type ReactNode } from "react";
 export type SortableListItem = {
   id: number;
   primary: string;
+  meta?: string;
   secondary?: string;
   link?: string | null;
   isHighlighted?: boolean;
@@ -80,6 +81,11 @@ function SortableRow({
           <p className="text-sm font-semibold text-text-primary">
             {item.primary}
           </p>
+          {item.meta ? (
+            <p className="mt-1 text-xs font-medium uppercase tracking-wide text-text-secondary">
+              {item.meta}
+            </p>
+          ) : null}
           {item.secondary || item.link ? (
             <button
               type="button"

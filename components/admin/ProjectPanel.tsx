@@ -20,6 +20,7 @@ type ProjectListItem = {
   donation_url: string;
   ngo_id: number;
   regions: Array<{ id: number; name: string }>;
+  categoryIds: number[];
   ngo: { name: string } | null;
   position: number | null;
 };
@@ -37,6 +38,11 @@ type ProjectRow = {
     | null;
   position: number | null;
   ngo: { name: string } | { name: string }[] | null;
+  project_categories:
+    | Array<{
+        category: { id: number; name: string } | { id: number; name: string }[] | null;
+      }>
+    | null;
 };
 
 const INITIAL_FORM = {
@@ -53,6 +59,7 @@ export function ProjectPanel() {
   const formSectionRef = useRef<HTMLElement | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [ngoFilter, setNgoFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [regionFilter, setRegionFilter] = useState("all");
 
   const [ngos, setNgos] = useState<NgoOption[]>([]);
@@ -101,7 +108,10 @@ export function ProjectPanel() {
     return reorderedItems.some((item, index) => item.id !== originalItems[index]?.id);
   }, [originalItems, reorderedItems]);
   const hasActiveFilter =
-    searchQuery.trim().length > 0 || ngoFilter !== "all" || regionFilter !== "all";
+    searchQuery.trim().length > 0 ||
+    ngoFilter !== "all" ||
+    categoryFilter !== "all" ||
+    regionFilter !== "all";
   const hasFormChanges = useMemo(() => {
     const normalizeList = (values: number[]) => [...values].sort((a, b) => a - b).join(",");
     return (
@@ -133,11 +143,13 @@ export function ProjectPanel() {
         project.title.toLocaleLowerCase("tr-TR").includes(query) ||
         (project.ngo?.name ?? "").toLocaleLowerCase("tr-TR").includes(query);
       const matchesNgo = ngoFilter === "all" || String(project.ngo_id) === ngoFilter;
+      const matchesCategory =
+        categoryFilter === "all" || project.categoryIds.includes(Number(categoryFilter));
       const matchesRegion =
         regionFilter === "all" || project.regions.some((region) => String(region.id) === regionFilter);
-      return matchesQuery && matchesNgo && matchesRegion;
+      return matchesQuery && matchesNgo && matchesCategory && matchesRegion;
     });
-  }, [ngoFilter, projects, regionFilter, reorderedItems, searchQuery]);
+  }, [categoryFilter, ngoFilter, projects, regionFilter, reorderedItems, searchQuery]);
 
   async function loadData() {
     try {
@@ -157,11 +169,11 @@ export function ProjectPanel() {
         (hasActiveFilter
           ? supabase
               .from("project")
-              .select("id,title,price,donation_url,ngo_id,position,ngo:ngo_id(name),project_bolge(bolge:bolge_id(id,name))")
+              .select("id,title,price,donation_url,ngo_id,position,ngo:ngo_id(name),project_bolge(bolge:bolge_id(id,name)),project_categories(category:category_id(id,name))")
               .order("id", { ascending: true })
           : supabase
               .from("project")
-              .select("id,title,price,donation_url,ngo_id,position,ngo:ngo_id(name),project_bolge(bolge:bolge_id(id,name))")
+              .select("id,title,price,donation_url,ngo_id,position,ngo:ngo_id(name),project_bolge(bolge:bolge_id(id,name)),project_categories(category:category_id(id,name))")
               .order("position", { ascending: true, nullsFirst: false })),
       ]);
 
@@ -189,6 +201,18 @@ export function ProjectPanel() {
               .filter((item): item is [number, { id: number; name: string }] => Boolean(item)),
           ).values(),
         ),
+        categoryIds: Array.from(
+          new Set(
+            (row.project_categories ?? [])
+              .map((item) => {
+                const category = Array.isArray(item.category)
+                  ? item.category[0] ?? null
+                  : item.category;
+                return category?.id ?? null;
+              })
+              .filter((id): id is number => typeof id === "number"),
+          ),
+        ),
         position: row.position,
         ngo: Array.isArray(row.ngo) ? row.ngo[0] ?? null : row.ngo,
       }));
@@ -197,6 +221,7 @@ export function ProjectPanel() {
       const listItems = mappedProjects.map((project) => ({
         id: project.id,
         primary: project.title,
+        meta: `Kurum: ${project.ngo?.name ?? "Bilinmiyor"}`,
         secondary: `Kurum: ${project.ngo?.name ?? "Bilinmiyor"} · Bölge: ${
           project.regions.length
             ? project.regions.map((region) => region.name).join(", ")
@@ -736,7 +761,7 @@ export function ProjectPanel() {
             </span>
           ) : null}
         </div>
-        <div className="mt-3 grid gap-3 md:grid-cols-3">
+        <div className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-text-secondary">Ara</span>
             <input
@@ -758,6 +783,21 @@ export function ProjectPanel() {
               {ngos.map((ngo) => (
                 <option key={ngo.id} value={ngo.id}>
                   {ngo.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-text-secondary">Kategori</span>
+            <select
+              value={categoryFilter}
+              onChange={(event) => setCategoryFilter(event.target.value)}
+              className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm outline-none focus:border-brand-primary"
+            >
+              <option value="all">Tümü</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
                 </option>
               ))}
             </select>
