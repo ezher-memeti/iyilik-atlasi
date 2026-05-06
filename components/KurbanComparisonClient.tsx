@@ -56,6 +56,7 @@ export function KurbanComparisonClient({
 }: KurbanComparisonClientProps) {
   const tabsScrollRef = useRef<HTMLDivElement | null>(null);
   const categoryButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const lastAppliedInitialCategoryRef = useRef<string>("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isCompareOpen, setIsCompareOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(
@@ -111,18 +112,23 @@ export function KurbanComparisonClient({
   useEffect(() => {
     const cleanedInitial = cleanCategoryLabel(initialCategory ?? "");
     if (!cleanedInitial) return;
-    if (normalizeText(cleanedInitial) === normalizeText(selectedCategory)) return;
 
-    setSelectedCategory(cleanedInitial);
-    setSearch(DEFAULT_SEARCH);
-    setPriceFilter(DEFAULT_PRICE_FILTER);
-    setRegionFilter(DEFAULT_REGION_FILTER);
-    setSortBy(DEFAULT_SORT);
-    setDraftSearch(DEFAULT_SEARCH);
-    setDraftPriceFilter(DEFAULT_PRICE_FILTER);
-    setDraftRegionFilter(DEFAULT_REGION_FILTER);
-    setDraftSortBy(DEFAULT_SORT);
-  }, [initialCategory, selectedCategory]);
+    const normalizedInitial = normalizeText(cleanedInitial);
+    if (lastAppliedInitialCategoryRef.current === normalizedInitial) return;
+    lastAppliedInitialCategoryRef.current = normalizedInitial;
+
+    if (normalizeText(cleanedInitial) !== normalizeText(selectedCategory)) {
+      setSelectedCategory(cleanedInitial);
+      setSearch(DEFAULT_SEARCH);
+      setPriceFilter(DEFAULT_PRICE_FILTER);
+      setRegionFilter(DEFAULT_REGION_FILTER);
+      setSortBy(DEFAULT_SORT);
+      setDraftSearch(DEFAULT_SEARCH);
+      setDraftPriceFilter(DEFAULT_PRICE_FILTER);
+      setDraftRegionFilter(DEFAULT_REGION_FILTER);
+      setDraftSortBy(DEFAULT_SORT);
+    }
+  }, [initialCategory]);
 
   useEffect(() => {
     const selectedButton = categoryButtonRefs.current[selectedCategory];
