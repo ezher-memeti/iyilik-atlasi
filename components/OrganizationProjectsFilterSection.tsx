@@ -99,7 +99,7 @@ export function OrganizationProjectsFilterSection({
             Bağış Seçenekleri
           </h2>
           <p className="mt-2 text-sm text-[#6B7280]">
-            Kategorilere göre bağış projelerini inceleyin.
+            Kurumun aktif bağış projelerini inceleyin.
           </p>
 
         </div>
