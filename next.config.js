@@ -2,7 +2,7 @@ const isDev = process.env.NODE_ENV !== "production";
 
 const contentSecurityPolicy = `
   default-src 'self';
-  connect-src 'self' https://*.supabase.co https://api.supabase.com;
+  connect-src 'self' https://*.supabase.co https://api.supabase.com https://www.google-analytics.com https://region1.google-analytics.com https://region2.google-analytics.com;
   script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com;
   style-src 'self' 'unsafe-inline';
   img-src 'self' data: blob: https:;

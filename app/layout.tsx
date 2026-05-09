@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Footer } from "@/components/Footer";
+import { GoogleAnalytics } from "@/components/GoogleAnalytics";
 import { Navbar } from "@/components/Navbar";
 import { StructuredData } from "@/components/StructuredData";
 import { siteUrl } from "@/components/SEO";
@@ -60,6 +61,8 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const measurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
+
   return (
     <html lang="tr" className="dark" suppressHydrationWarning>
       <body className="flex min-h-screen flex-col">
@@ -67,6 +70,7 @@ export default function RootLayout({
         <div className="flex-1">{children}</div>
         <Footer />
         <StructuredData data={websiteSchema} />
+        {measurementId ? <GoogleAnalytics measurementId={measurementId} /> : null}
       </body>
     </html>
   );
