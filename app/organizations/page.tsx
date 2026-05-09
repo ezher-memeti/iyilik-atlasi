@@ -1,6 +1,6 @@
 import { OrganizationsShowcase } from "@/components/OrganizationsShowcase";
 import { createSeoMetadata } from "@/components/SEO";
-import { getOrganizationCatalog } from "@/lib/organizationsCatalog";
+import { getOrganizationCatalogData } from "@/lib/organizationsCatalog";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +19,13 @@ export const metadata = createSeoMetadata({
 });
 
 export default async function OrganizationsPage() {
-  const organizations = await getOrganizationCatalog();
+  const { organizations, categoryOptions, regionOptions } = await getOrganizationCatalogData();
 
-  return <OrganizationsShowcase organizations={organizations} />;
+  return (
+    <OrganizationsShowcase
+      organizations={organizations}
+      categoryOptions={categoryOptions}
+      regionOptions={regionOptions}
+    />
+  );
 }

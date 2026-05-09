@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import common from "@/content/common.json";
 import { createClient } from "@/lib/supabase/client";
+import { OrganizationsPageLink } from "@/components/OrganizationsPageLink";
 
 type NavItem = {
   href: string;
@@ -114,9 +115,11 @@ export function Navbar() {
           <ul className="flex items-center gap-7">
             {navItems.map((item) => {
               const active = pathname === item.href;
+              const NavLinkComponent =
+                item.href === "/organizations" ? OrganizationsPageLink : Link;
               return (
                 <li key={item.href}>
-                  <Link
+                  <NavLinkComponent
                     href={item.href}
                     className={`relative inline-flex py-2 text-sm font-medium transition-colors duration-200 ${active
                         ? "text-slate-900"
@@ -129,7 +132,7 @@ export function Navbar() {
                       className={`absolute bottom-0 left-0 h-0.5 rounded-full bg-emerald-500 transition-all duration-200 ${active ? "w-full opacity-100" : "w-0 opacity-0"
                         }`}
                     />
-                  </Link>
+                  </NavLinkComponent>
                 </li>
               );
             })}
@@ -175,9 +178,11 @@ export function Navbar() {
           <ul className="space-y-1">
             {navItems.map((item) => {
               const active = pathname === item.href;
+              const NavLinkComponent =
+                item.href === "/organizations" ? OrganizationsPageLink : Link;
               return (
                 <li key={item.href}>
-                  <Link
+                  <NavLinkComponent
                     href={item.href}
                     className={`inline-flex w-full items-center justify-between py-2.5 text-sm font-medium transition-colors ${active
                         ? "text-slate-900"
@@ -189,7 +194,7 @@ export function Navbar() {
                     {active ? (
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                     ) : null}
-                  </Link>
+                  </NavLinkComponent>
                 </li>
               );
             })}

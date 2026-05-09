@@ -1,5 +1,6 @@
 import Link from "next/link";
 import common from "@/content/common.json";
+import { OrganizationsPageLink } from "@/components/OrganizationsPageLink";
 
 const linkGroups = [
   {
@@ -53,12 +54,21 @@ export function Footer() {
                 <ul className="mt-4 space-y-3">
                   {group.links.map((link) => (
                     <li key={link.label}>
-                      <Link
-                        href={link.href}
-                        className="text-sm text-gray-600 transition-colors duration-200 hover:text-black"
-                      >
-                        {link.label}
-                      </Link>
+                      {link.href === "/organizations" ? (
+                        <OrganizationsPageLink
+                          href={link.href}
+                          className="text-sm text-gray-600 transition-colors duration-200 hover:text-black"
+                        >
+                          {link.label}
+                        </OrganizationsPageLink>
+                      ) : (
+                        <Link
+                          href={link.href}
+                          className="text-sm text-gray-600 transition-colors duration-200 hover:text-black"
+                        >
+                          {link.label}
+                        </Link>
+                      )}
                     </li>
                   ))}
                 </ul>

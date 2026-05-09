@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { CategorySlider } from "@/components/CategorySlider";
 import { AnimatedStats } from "@/components/hero/AnimatedStats";
+import { OrganizationsPageLink } from "@/components/OrganizationsPageLink";
 import { getCategories } from "@/lib/api/getCategories";
 import { getProjects } from "@/lib/api/getProjects";
 import { getOrganizationCatalog } from "@/lib/organizationsCatalog";
 
 export const metadata = {
-  title: "Türkiye’nin Yeni Bağış Karşılaştırma Platformu",
+  title: "Türkiye’nin Bağış Karşılaştırma Platformu",
   description:
     "İyilik Atlası ile bağış yapacağınız kurumları ve projeleri karşılaştırın. Şeffaf bilgilerle doğru kararı verin.",
 };
@@ -72,7 +73,7 @@ export default async function HomePage() {
       <section className="relative left-1/2 right-1/2 w-screen -translate-x-1/2 overflow-hidden bg-hero-surface-light py-14 sm:py-20 lg:min-h-[78vh] lg:py-28">
         <div className="mx-auto flex w-full max-w-[1100px] flex-col justify-center px-14 sm:px-20 lg:min-h-[50vh] lg:px-32">
           <p className="mx-auto w-fit px-1 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-brand-primary">
-            Şeffaf ve güven odaklı platform
+            Bağış Platformu
           </p>
           <h1 className="mx-auto mt-6 max-w-4xl text-center text-4xl font-bold leading-tight tracking-tight text-text-primary sm:text-5xl lg:text-6xl">
             Bağış kararını
@@ -87,12 +88,12 @@ export default async function HomePage() {
             en doğru tercihi yapmanı kolaylaştırır.
           </p>
           <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Link
+            <OrganizationsPageLink
               href="/organizations"
               className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-brand-primary px-6 text-sm font-semibold text-white transition hover:bg-brand-secondary sm:w-auto"
             >
               Kurumları İncele
-            </Link>
+            </OrganizationsPageLink>
             <Link
               href="/bagislar"
               className="inline-flex min-h-11 w-full items-center justify-center rounded-md border border-brand-primary/35 bg-white/80 px-6 text-sm font-semibold text-brand-primary transition hover:border-brand-primary hover:bg-surface-categoryLight sm:w-auto"

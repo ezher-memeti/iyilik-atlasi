@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 import { NgoLogo } from "@/components/NgoLogo";
+import { BackToOrganizationsButton } from "@/components/BackToOrganizationsButton";
+import { OrganizationProjectsFilterSection } from "@/components/OrganizationProjectsFilterSection";
 import { createCanonicalUrl, createSeoMetadata } from "@/components/SEO";
 import { StructuredData } from "@/components/StructuredData";
 import {
@@ -7,7 +9,6 @@ import {
   getOrganizationCatalog,
 } from "@/lib/organizationsCatalog";
 import { getKurbanProjectsForOrganization } from "@/lib/organizationProjects";
-import { formatPrice } from "@/lib/kurban";
 
 export const dynamic = "force-dynamic";
 
@@ -82,7 +83,7 @@ export default async function OrganizationProfilePage({
       projects
         .flatMap((project) => project.regions ?? (project.region ? [project.region] : []))
         .map((region) => region.trim())
-        .filter((region): region is string => Boolean(region)),
+      .filter((region): region is string => Boolean(region)),
     ),
   );
 
@@ -101,6 +102,10 @@ export default async function OrganizationProfilePage({
       <StructuredData data={organizationSchema} />
 
       <div className="mx-auto w-full max-w-[1160px] space-y-16 px-4 sm:px-6 lg:px-8">
+        <div className="pt-2">
+          <BackToOrganizationsButton />
+        </div>
+
         <section className="rounded-3xl bg-[radial-gradient(circle_at_25%_0%,rgba(16,185,129,0.15),transparent_46%),linear-gradient(135deg,#ffffff_0%,#f5faf7_100%)] px-6 py-10 sm:px-10 sm:py-12">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">
             Kurum Profili
@@ -170,65 +175,15 @@ export default async function OrganizationProfilePage({
           />
         </section>
 
-        <section>
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">
-                Bağış Projeleri
-              </p>
-              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[#1F2937]">
-                Kurban Bağış Seçenekleri
-              </h2>
-            </div>
-          </div>
-
-          {projects.length > 0 ? (
-            <div className="mt-6 grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-              {projects.map((project) => (
-                <article
-                  key={project.id}
-                  className="flex h-full flex-col rounded-2xl bg-white p-5 shadow-sm"
-                >
-                  <h3 className="text-lg font-semibold text-[#1F2937]">
-                    {project.name}
-                  </h3>
-                  <p className="mt-3 text-sm leading-7 text-[#6B7280]">
-                    {project.description}
-                  </p>
-
-                  <div className="mt-4 space-y-1 text-sm text-[#6B7280]">
-                    {project.price ? <p>Fiyat: {formatPrice(project.price)}</p> : null}
-                    {project.regions && project.regions.length > 0 ? (
-                      <div className="flex flex-wrap gap-1.5">
-                        {project.regions.map((region) => (
-                          <span
-                            key={`${project.id}-${region}`}
-                            className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800"
-                          >
-                            {region}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <a
-                    href={project.donationUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-6 inline-flex items-center text-sm font-semibold text-emerald-700 transition hover:text-emerald-800"
-                  >
-                    Bağış Yap →
-                  </a>
-                </article>
-              ))}
-            </div>
-          ) : (
+        {projects.length > 0 ? (
+          <OrganizationProjectsFilterSection projects={projects} />
+        ) : (
+          <section>
             <p className="mt-6 text-sm text-[#6B7280]">
               Bu kurum için kurban bağış projesi bilgisi şu anda listelenmiyor.
             </p>
-          )}
-        </section>
+          </section>
+        )}
 
         <section>
           <details className="rounded-xl bg-white/70 p-4 text-sm text-[#6B7280] shadow-sm">
