@@ -93,11 +93,15 @@ export function OrganizationProjectsFilterSection({
       <div className="flex items-end justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">
-            Bağış Projeleri
+            Projeler
           </p>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[#1F2937]">
-            Kurban Bağış Seçenekleri
+            Bağış Seçenekleri
           </h2>
+          <p className="mt-2 text-sm text-[#6B7280]">
+            Kategorilere göre bağış projelerini inceleyin.
+          </p>
+
         </div>
       </div>
 
@@ -123,20 +127,18 @@ export function OrganizationProjectsFilterSection({
                     ref={(el) => {
                       categoryButtonRefs.current[category] = el;
                     }}
-                    className={`-mb-px inline-flex items-center gap-2 border-b-2 px-1 py-3 text-sm font-semibold transition-colors duration-200 ${
-                      active
-                        ? "border-brand-primary text-brand-primary"
-                        : "border-transparent text-text-secondary hover:text-text-primary"
-                    }`}
+                    className={`-mb-px inline-flex items-center gap-2 border-b-2 px-1 py-3 text-sm font-semibold transition-colors duration-200 ${active
+                      ? "border-brand-primary text-brand-primary"
+                      : "border-transparent text-text-secondary hover:text-text-primary"
+                      }`}
                     aria-pressed={active}
                   >
                     {category}
                     <span
-                      className={`rounded-full px-2 py-0.5 text-[11px] ${
-                        active
-                          ? "bg-brand-primary/10 text-brand-primary"
-                          : "bg-slate-100 text-slate-600"
-                      }`}
+                      className={`rounded-full px-2 py-0.5 text-[11px] ${active
+                        ? "bg-brand-primary/10 text-brand-primary"
+                        : "bg-slate-100 text-slate-600"
+                        }`}
                     >
                       {count}
                     </span>

@@ -32,7 +32,7 @@ export async function generateMetadata({ params }: OrganizationPageProps) {
 
   return createSeoMetadata({
     title: `${organization.name} | Kurum Profili | İyilik Atlası`,
-    description: `${organization.name} kurum profilini, güven bilgilerini ve kurban bağış seçeneklerini İyilik Atlası üzerinden inceleyin.`,
+    description: `${organization.name} kurum profilini ve bağış seçeneklerini İyilik Atlası üzerinden inceleyin.`,
     keywords: [
       `${organization.name} bağış`,
       `${organization.name} kurban bağışı`,
@@ -83,7 +83,7 @@ export default async function OrganizationProfilePage({
       projects
         .flatMap((project) => project.regions ?? (project.region ? [project.region] : []))
         .map((region) => region.trim())
-      .filter((region): region is string => Boolean(region)),
+        .filter((region): region is string => Boolean(region)),
     ),
   );
 
@@ -180,7 +180,7 @@ export default async function OrganizationProfilePage({
         ) : (
           <section>
             <p className="mt-6 text-sm text-[#6B7280]">
-              Bu kurum için kurban bağış projesi bilgisi şu anda listelenmiyor.
+              Bu kurum için bağış projesi bilgisi şu anda listelenmiyor.
             </p>
           </section>
         )}
