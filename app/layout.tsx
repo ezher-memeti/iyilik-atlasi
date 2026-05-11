@@ -66,6 +66,7 @@ export default function RootLayout({
   return (
     <html lang="tr" className="dark" suppressHydrationWarning>
       <body className="flex min-h-screen flex-col">
+        <GoogleAnalytics measurementId="G-B8B8WXESWG" />
         <Navbar />
         <div className="flex-1">{children}</div>
         <Footer />

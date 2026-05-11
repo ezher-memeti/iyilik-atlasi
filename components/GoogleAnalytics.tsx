@@ -6,6 +6,7 @@ type GoogleAnalyticsProps = {
   measurementId: string;
 };
 
+
 export function GoogleAnalytics({ measurementId }: GoogleAnalyticsProps) {
   return (
     <>
