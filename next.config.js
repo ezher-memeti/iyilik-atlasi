@@ -1,17 +1,13 @@
 const isDev = process.env.NODE_ENV !== "production";
 
-const cspDirectives = [
-  "default-src 'self'",
-  "base-uri 'self'",
-  "object-src 'none'",
-  "frame-ancestors 'none'",
-  "img-src 'self' https: data:",
-  "script-src 'self' 'unsafe-inline'",
-  "style-src 'self' 'unsafe-inline'",
-  "connect-src 'self'",
-  "form-action 'none'",
-  "upgrade-insecure-requests",
-];
+const contentSecurityPolicy = `
+  default-src 'self';
+  connect-src 'self' https://*.supabase.co https://api.supabase.com https://www.google-analytics.com https://region1.google-analytics.com https://region2.google-analytics.com;
+  script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com;
+  style-src 'self' 'unsafe-inline';
+  img-src 'self' data: blob: https:;
+  frame-ancestors 'none';
+`.replace(/\s{2,}/g, " ").trim();
 
 const baseSecurityHeaders = [
   {
@@ -31,7 +27,7 @@ const baseSecurityHeaders = [
 const productionSecurityHeaders = [
   {
     key: "Content-Security-Policy",
-    value: cspDirectives.join("; "),
+    value: contentSecurityPolicy,
   },
   ...baseSecurityHeaders,
 ];
@@ -40,6 +36,15 @@ const securityHeaders = isDev ? baseSecurityHeaders : productionSecurityHeaders;
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "*.supabase.co",
+        pathname: "/storage/v1/object/public/**",
+      },
+    ],
+  },
   async headers() {
     return [
       {

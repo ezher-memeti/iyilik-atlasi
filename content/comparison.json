@@ -5,7 +5,7 @@
   "headers": {
     "organization": "Kurum",
     "projectTitle": "Proje başlığı",
-    "price": "Hisse başı fiyat",
+    "price": "Hisse başı tutar",
     "description": "Açıklama",
     "donate": "Bağış"
   }
