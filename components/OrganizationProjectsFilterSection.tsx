@@ -197,7 +197,7 @@ export function OrganizationProjectsFilterSection({
                 {project.categories[0] || "Belirtilmedi"}
               </span>
               <span className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
-                {project.price ? formatPrice(project.price) : "Fiyat belirtilmedi"}
+                {project.price ? formatPrice(project.price) : "Tutar belirtilmedi"}
               </span>
             </div>
 

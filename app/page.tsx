@@ -23,7 +23,7 @@ const steps = [
   {
     title: "Bağış Seçeneklerini Kıyasla",
     description:
-      "Bağışlar sayfasında projeleri tek ekranda karşılaştır, fiyat ve açıklamaları net biçimde incele.",
+      "Bağışlar sayfasında projeleri tek ekranda karşılaştır, tutar ve açıklamaları net biçimde incele.",
     icon: <CompareIcon />,
   },
   {

@@ -268,7 +268,7 @@ export default async function NgoProfilePage({ params }: NgoProfilePageProps) {
                   {project.regions.length
                     ? `Bölge: ${project.regions.join(", ")}`
                     : "Bölge: Belirtilmedi"}
-                  {project.price !== null ? ` · Fiyat: ${formatCurrency(project.price)}` : ""}
+                  {project.price !== null ? ` · Tutar: ${formatCurrency(project.price)}` : ""}
                 </p>
                 {project.donation_url ? (
                   <a

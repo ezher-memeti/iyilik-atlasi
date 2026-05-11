@@ -27,9 +27,9 @@ type KurbanComparisonClientProps = {
 };
 
 type SortType = "price" | "popular" | "az";
+type PriceBounds = { min: number; max: number };
 
 const DEFAULT_SEARCH = "";
-const DEFAULT_PRICE_FILTER = "all";
 const DEFAULT_REGION_FILTER = "all";
 const DEFAULT_SORT: SortType = "popular";
 const DEFAULT_CATEGORY = "Kurban";
@@ -47,6 +47,52 @@ function cleanCategoryLabel(value: string) {
     index += 1;
   }
   return trimmed.slice(index).trim();
+}
+
+function getProjectRegions(project: KurbanProjectWithOrganization) {
+  return project.regions ?? (project.region ? [project.region] : []);
+}
+
+function getPositivePrice(project: KurbanProjectWithOrganization) {
+  return project.price > 0 ? project.price : null;
+}
+
+function clampRangeToBounds(range: PriceBounds, bounds: PriceBounds): PriceBounds {
+  const min = Math.max(bounds.min, Math.min(range.min, bounds.max));
+  const max = Math.min(bounds.max, Math.max(range.max, bounds.min));
+  if (min > max) return { ...bounds };
+  return { min, max };
+}
+
+function areRangesEqual(a: PriceBounds | null, b: PriceBounds | null) {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  return a.min === b.min && a.max === b.max;
+}
+
+function getPriceHistogram(prices: number[], bounds: PriceBounds | null, preferredBins = 24) {
+  if (!bounds || !prices.length) return [];
+  const binCount = Math.max(8, Math.min(preferredBins, prices.length));
+  const span = Math.max(bounds.max - bounds.min, 1);
+  const bins = Array.from({ length: binCount }, (_, index) => ({
+    index,
+    count: 0,
+    start: bounds.min + (span * index) / binCount,
+    end: bounds.min + (span * (index + 1)) / binCount,
+  }));
+
+  prices.forEach((price) => {
+    const ratio = (price - bounds.min) / span;
+    const rawIndex = Math.floor(ratio * binCount);
+    const safeIndex = Math.max(0, Math.min(binCount - 1, rawIndex));
+    bins[safeIndex].count += 1;
+  });
+
+  const maxCount = Math.max(...bins.map((bin) => bin.count), 1);
+  return bins.map((bin) => ({
+    ...bin,
+    intensity: bin.count / maxCount,
+  }));
 }
 
 export function KurbanComparisonClient({
@@ -71,7 +117,7 @@ export function KurbanComparisonClient({
   );
 
   const [search, setSearch] = useState(DEFAULT_SEARCH);
-  const [priceFilter, setPriceFilter] = useState(DEFAULT_PRICE_FILTER);
+  const [selectedPriceRange, setSelectedPriceRange] = useState<PriceBounds | null>(null);
   const [regionFilter, setRegionFilter] = useState(DEFAULT_REGION_FILTER);
   const [sortBy, setSortBy] = useState<SortType>(DEFAULT_SORT);
 
@@ -82,7 +128,7 @@ export function KurbanComparisonClient({
     "filter",
   );
   const [draftSearch, setDraftSearch] = useState(DEFAULT_SEARCH);
-  const [draftPriceFilter, setDraftPriceFilter] = useState(DEFAULT_PRICE_FILTER);
+  const [draftPriceRange, setDraftPriceRange] = useState<PriceBounds | null>(null);
   const [draftRegionFilter, setDraftRegionFilter] = useState(DEFAULT_REGION_FILTER);
   const [draftSortBy, setDraftSortBy] = useState<SortType>(DEFAULT_SORT);
   const [showTabArrows, setShowTabArrows] = useState(false);
@@ -124,11 +170,11 @@ export function KurbanComparisonClient({
     if (normalizeText(cleanedInitial) !== normalizeText(selectedCategory)) {
       setSelectedCategory(cleanedInitial);
       setSearch(DEFAULT_SEARCH);
-      setPriceFilter(DEFAULT_PRICE_FILTER);
+      setSelectedPriceRange(null);
       setRegionFilter(DEFAULT_REGION_FILTER);
       setSortBy(DEFAULT_SORT);
       setDraftSearch(DEFAULT_SEARCH);
-      setDraftPriceFilter(DEFAULT_PRICE_FILTER);
+      setDraftPriceRange(null);
       setDraftRegionFilter(DEFAULT_REGION_FILTER);
       setDraftSortBy(DEFAULT_SORT);
     }
@@ -177,7 +223,7 @@ export function KurbanComparisonClient({
     return map;
   }, [groups, selectedIds]);
 
-  const filteredGroups = useMemo(() => {
+  const baseFilteredGroups = useMemo(() => {
     const query = search.trim().toLocaleLowerCase("tr-TR");
     const selectedCategoryNormalized = normalizeText(selectedCategory);
 
@@ -223,19 +269,6 @@ export function KurbanComparisonClient({
             );
           })
           .filter((project) => {
-            if (priceFilter === "all") {
-              return true;
-            }
-            if (priceFilter === "0-7000") {
-              return project.price > 0 && project.price <= 7000;
-            }
-            if (priceFilter === "7000-12000") {
-              return project.price > 7000 && project.price <= 12000;
-            }
-
-            return project.price > 12000;
-          })
-          .filter((project) => {
             if (regionFilter === "all") {
               return true;
             }
@@ -244,6 +277,85 @@ export function KurbanComparisonClient({
             const projectRegions = (project.regions ?? (project.region ? [project.region] : []))
               .map((region) => normalizeText(region));
             return projectRegions.includes(normalizedRegionFilter);
+          })
+          .sort((a, b) => {
+            if (sortBy === "az") {
+              return a.title.localeCompare(b.title, "tr");
+            }
+            return 0;
+          });
+
+        return {
+          ...group,
+          projects: filteredProjects,
+        };
+      })
+      .filter((group) => group.projects.length > 0);
+  }, [groups, regionFilter, search, selectedCategory, sortBy]);
+
+  const availablePriceBounds = useMemo<PriceBounds | null>(() => {
+    const prices = baseFilteredGroups
+      .flatMap((group) => group.projects)
+      .map(getPositivePrice)
+      .filter((price): price is number => price !== null);
+
+    if (!prices.length) return null;
+
+    return {
+      min: Math.min(...prices),
+      max: Math.max(...prices),
+    };
+  }, [baseFilteredGroups]);
+
+  const priceDistribution = useMemo(() => {
+    const prices = baseFilteredGroups
+      .flatMap((group) => group.projects)
+      .map(getPositivePrice)
+      .filter((price): price is number => price !== null);
+    return getPriceHistogram(prices, availablePriceBounds, 22);
+  }, [availablePriceBounds, baseFilteredGroups]);
+
+  useEffect(() => {
+    if (!availablePriceBounds) {
+      if (selectedPriceRange !== null) {
+        setSelectedPriceRange(null);
+      }
+      if (draftPriceRange !== null) {
+        setDraftPriceRange(null);
+      }
+      return;
+    }
+
+    if (selectedPriceRange) {
+      const clamped = clampRangeToBounds(selectedPriceRange, availablePriceBounds);
+      if (!areRangesEqual(clamped, selectedPriceRange)) {
+        setSelectedPriceRange(clamped);
+      }
+    }
+
+    if (draftPriceRange) {
+      const clampedDraft = clampRangeToBounds(draftPriceRange, availablePriceBounds);
+      if (!areRangesEqual(clampedDraft, draftPriceRange)) {
+        setDraftPriceRange(clampedDraft);
+      }
+    }
+  }, [availablePriceBounds, draftPriceRange, selectedPriceRange]);
+
+  const effectivePriceRange = useMemo<PriceBounds | null>(() => {
+    if (!availablePriceBounds) return null;
+    if (!selectedPriceRange) return availablePriceBounds;
+    return clampRangeToBounds(selectedPriceRange, availablePriceBounds);
+  }, [availablePriceBounds, selectedPriceRange]);
+
+  const filteredGroups = useMemo(() => {
+    return baseFilteredGroups
+      .map((group) => {
+        const filteredProjects = group.projects
+          .filter((project) => {
+            if (!effectivePriceRange) return true;
+            const price = getPositivePrice(project);
+            if (price === null) return false;
+            return price >= effectivePriceRange.min && price <= effectivePriceRange.max;
           })
           .sort((a, b) => {
             if (sortBy === "price") {
@@ -265,7 +377,7 @@ export function KurbanComparisonClient({
         };
       })
       .filter((group) => group.projects.length > 0);
-  }, [groups, priceFilter, regionFilter, search, selectedCategory, sortBy]);
+  }, [baseFilteredGroups, effectivePriceRange, sortBy]);
 
   const activeFilterSummary = useMemo(() => {
     const parts: string[] = [];
@@ -274,12 +386,13 @@ export function KurbanComparisonClient({
       parts.push(regionFilter);
     }
 
-    if (priceFilter === "0-7000") {
-      parts.push("₺0–₺7.000");
-    } else if (priceFilter === "7000-12000") {
-      parts.push("₺7.001–₺12.000");
-    } else if (priceFilter === "12000+") {
-      parts.push("₺12.000+");
+    if (effectivePriceRange && availablePriceBounds) {
+      const isFullRange =
+        effectivePriceRange.min === availablePriceBounds.min &&
+        effectivePriceRange.max === availablePriceBounds.max;
+      if (!isFullRange) {
+        parts.push(`${formatPrice(effectivePriceRange.min)}–${formatPrice(effectivePriceRange.max)}`);
+      }
     }
 
     if (search.trim()) {
@@ -287,7 +400,7 @@ export function KurbanComparisonClient({
     }
 
     return parts.length ? parts.join(" • ") : "Tüm projeler";
-  }, [priceFilter, regionFilter, search]);
+  }, [availablePriceBounds, effectivePriceRange, regionFilter, search]);
 
   useEffect(() => {
     if (!filteredGroups.length) {
@@ -394,7 +507,7 @@ export function KurbanComparisonClient({
   function openMobileSheet(mode: "filter" | "sort") {
     setMobileSheetMode(mode);
     setDraftSearch(search);
-    setDraftPriceFilter(priceFilter);
+    setDraftPriceRange(selectedPriceRange);
     setDraftRegionFilter(regionFilter);
     setDraftSortBy(sortBy);
     setIsMobileFilterOpen(true);
@@ -402,7 +515,7 @@ export function KurbanComparisonClient({
 
   function applyMobileFilters() {
     setSearch(draftSearch);
-    setPriceFilter(draftPriceFilter);
+    setSelectedPriceRange(draftPriceRange);
     setRegionFilter(draftRegionFilter);
     setSortBy(draftSortBy);
     setIsMobileFilterOpen(false);
@@ -410,13 +523,53 @@ export function KurbanComparisonClient({
 
   function clearMobileFilters() {
     setDraftSearch(DEFAULT_SEARCH);
-    setDraftPriceFilter(DEFAULT_PRICE_FILTER);
+    setDraftPriceRange(null);
     setDraftRegionFilter(DEFAULT_REGION_FILTER);
     setDraftSortBy(DEFAULT_SORT);
     setSearch(DEFAULT_SEARCH);
-    setPriceFilter(DEFAULT_PRICE_FILTER);
+    setSelectedPriceRange(null);
     setRegionFilter(DEFAULT_REGION_FILTER);
     setSortBy(DEFAULT_SORT);
+  }
+
+  function updateDesktopPriceMin(value: number) {
+    if (!availablePriceBounds) return;
+    const current = effectivePriceRange ?? availablePriceBounds;
+    const nextRange = clampRangeToBounds(
+      { min: value, max: Math.max(value, current.max) },
+      availablePriceBounds,
+    );
+    setSelectedPriceRange(nextRange);
+  }
+
+  function updateDesktopPriceMax(value: number) {
+    if (!availablePriceBounds) return;
+    const current = effectivePriceRange ?? availablePriceBounds;
+    const nextRange = clampRangeToBounds(
+      { min: Math.min(current.min, value), max: value },
+      availablePriceBounds,
+    );
+    setSelectedPriceRange(nextRange);
+  }
+
+  function updateDraftPriceMin(value: number) {
+    if (!availablePriceBounds) return;
+    const baseRange = draftPriceRange ?? effectivePriceRange ?? availablePriceBounds;
+    const nextRange = clampRangeToBounds(
+      { min: value, max: Math.max(value, baseRange.max) },
+      availablePriceBounds,
+    );
+    setDraftPriceRange(nextRange);
+  }
+
+  function updateDraftPriceMax(value: number) {
+    if (!availablePriceBounds) return;
+    const baseRange = draftPriceRange ?? effectivePriceRange ?? availablePriceBounds;
+    const nextRange = clampRangeToBounds(
+      { min: Math.min(baseRange.min, value), max: value },
+      availablePriceBounds,
+    );
+    setDraftPriceRange(nextRange);
   }
 
   function handleCategoryChange(category: string) {
@@ -501,18 +654,16 @@ export function KurbanComparisonClient({
 
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-text-secondary">
-                Fiyat
+                Tutar
               </span>
-              <select
-                value={priceFilter}
-                onChange={(event) => setPriceFilter(event.target.value)}
-                className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm text-text-primary outline-none transition focus:border-brand-primary"
-              >
-                <option value="all">Tüm fiyatlar</option>
-                <option value="0-7000">₺0 – ₺7.000</option>
-                <option value="7000-12000">₺7.001 – ₺12.000</option>
-                <option value="12000+">₺12.000+</option>
-              </select>
+              <PriceRangeControl
+                bounds={availablePriceBounds}
+                value={effectivePriceRange}
+                histogram={priceDistribution}
+                onMinChange={updateDesktopPriceMin}
+                onMaxChange={updateDesktopPriceMax}
+                floatingPanel
+              />
             </label>
 
             <label className="block">
@@ -521,7 +672,10 @@ export function KurbanComparisonClient({
               </span>
               <select
                 value={regionFilter}
-                onChange={(event) => setRegionFilter(event.target.value)}
+                onChange={(event) => {
+                  setRegionFilter(event.target.value);
+                  event.currentTarget.blur();
+                }}
                 className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm text-text-primary outline-none transition focus:border-brand-primary"
               >
                 <option value="all">Tümü</option>
@@ -539,10 +693,13 @@ export function KurbanComparisonClient({
               </span>
               <select
                 value={sortBy}
-                onChange={(event) => setSortBy(event.target.value as SortType)}
+                onChange={(event) => {
+                  setSortBy(event.target.value as SortType);
+                  event.currentTarget.blur();
+                }}
                 className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm text-text-primary outline-none transition focus:border-brand-primary"
               >
-                <option value="price">En uygun fiyat</option>
+                <option value="price">En uygun tutar</option>
                 <option value="popular">En popüler</option>
                 <option value="az">A–Z</option>
               </select>
@@ -773,18 +930,15 @@ export function KurbanComparisonClient({
 
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-text-secondary">
-                  Fiyat
+                  Tutar
                 </span>
-                <select
-                  value={draftPriceFilter}
-                  onChange={(event) => setDraftPriceFilter(event.target.value)}
-                  className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm text-text-primary outline-none transition focus:border-brand-primary"
-                >
-                  <option value="all">Tüm fiyatlar</option>
-                  <option value="0-7000">₺0 – ₺7.000</option>
-                  <option value="7000-12000">₺7.001 – ₺12.000</option>
-                  <option value="12000+">₺12.000+</option>
-                </select>
+                <PriceRangeControl
+                  bounds={availablePriceBounds}
+                  value={draftPriceRange ?? effectivePriceRange}
+                  histogram={priceDistribution}
+                  onMinChange={updateDraftPriceMin}
+                  onMaxChange={updateDraftPriceMax}
+                />
               </label>
 
               <label className="block">
@@ -793,7 +947,10 @@ export function KurbanComparisonClient({
                 </span>
                 <select
                   value={draftRegionFilter}
-                  onChange={(event) => setDraftRegionFilter(event.target.value)}
+                  onChange={(event) => {
+                    setDraftRegionFilter(event.target.value);
+                    event.currentTarget.blur();
+                  }}
                   className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm text-text-primary outline-none transition focus:border-brand-primary"
                 >
                   <option value="all">Tümü</option>
@@ -811,10 +968,13 @@ export function KurbanComparisonClient({
                 </span>
                 <select
                   value={draftSortBy}
-                  onChange={(event) => setDraftSortBy(event.target.value as SortType)}
+                  onChange={(event) => {
+                    setDraftSortBy(event.target.value as SortType);
+                    event.currentTarget.blur();
+                  }}
                   className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm text-text-primary outline-none transition focus:border-brand-primary"
                 >
-                  <option value="price">En uygun fiyat</option>
+                  <option value="price">En uygun tutar</option>
                   <option value="popular">En popüler</option>
                   <option value="az">A–Z</option>
                 </select>
@@ -841,6 +1001,123 @@ export function KurbanComparisonClient({
         </div>
       ) : null}
     </>
+  );
+}
+
+function PriceRangeControl({
+  bounds,
+  value,
+  histogram,
+  onMinChange,
+  onMaxChange,
+  defaultOpen = false,
+  floatingPanel = false,
+}: {
+  bounds: PriceBounds | null;
+  value: PriceBounds | null;
+  histogram: Array<{ index: number; count: number; start: number; end: number; intensity: number }>;
+  onMinChange: (value: number) => void;
+  onMaxChange: (value: number) => void;
+  defaultOpen?: boolean;
+  floatingPanel?: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  if (!bounds) {
+    return (
+      <div className="rounded-xl border border-divider-softLight bg-surface-pageLight/80 px-3 py-3">
+        <p className="text-xs text-text-secondary">Uygun tutar verisi bulunamadı.</p>
+      </div>
+    );
+  }
+
+  const safeValue = value ? clampRangeToBounds(value, bounds) : bounds;
+  const span = Math.max(bounds.max - bounds.min, 1);
+  const minPercent = ((safeValue.min - bounds.min) / span) * 100;
+  const maxPercent = ((safeValue.max - bounds.min) / span) * 100;
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setIsOpen((current) => !current)}
+        className="flex h-10 w-full items-center justify-between gap-3 rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-left shadow-[0_1px_3px_rgba(15,23,42,0.04)] transition hover:border-divider-softLight/90"
+        aria-expanded={isOpen}
+      >
+        <div>
+          <p className="text-sm font-semibold leading-tight text-text-primary">
+            {formatPrice(safeValue.min)} - {formatPrice(safeValue.max)}
+          </p>
+        </div>
+        <span
+          className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-transform duration-200 ${
+            isOpen ? "rotate-180" : ""
+          }`}
+          aria-hidden
+        >
+          <ChevronIcon />
+        </span>
+      </button>
+
+      {isOpen ? (
+        <div
+          className={`${
+            floatingPanel
+              ? "absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 rounded-xl border border-divider-softLight bg-surface-pageLight p-3 shadow-[0_20px_50px_rgba(15,23,42,0.16)]"
+              : "mt-2 rounded-xl border border-divider-softLight bg-surface-pageLight p-3 shadow-[0_8px_24px_rgba(15,23,42,0.1)]"
+          }`}
+        >
+          <p className="mb-2 text-[11px] text-text-secondary">
+            Aralık: {formatPrice(bounds.min)} - {formatPrice(bounds.max)}
+          </p>
+          <div className="mb-2 flex h-11 items-end gap-0.5 overflow-hidden rounded-md border border-divider-softLight/50 bg-surface-categoryLight/40 px-1 py-1">
+            {histogram.map((bin) => {
+              const isActive = bin.end >= safeValue.min && bin.start <= safeValue.max;
+              const height = Math.max(8, Math.round(bin.intensity * 100));
+              return (
+                <span
+                  key={bin.index}
+                  className={`block flex-1 rounded-sm transition-all duration-300 ${
+                    isActive ? "bg-brand-primary/40" : "bg-brand-primary/15"
+                  }`}
+                  style={{ height: `${height}%` }}
+                />
+              );
+            })}
+          </div>
+
+          <div className="relative h-10">
+            <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-divider-softLight/80" />
+            <div
+              className="absolute top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-brand-primary/50 transition-all duration-300"
+              style={{
+                left: `${minPercent}%`,
+                width: `${Math.max(maxPercent - minPercent, 0)}%`,
+              }}
+            />
+
+            <input
+              type="range"
+              min={bounds.min}
+              max={bounds.max}
+              value={safeValue.min}
+              onChange={(event) => onMinChange(Number(event.target.value))}
+              className="pointer-events-none absolute inset-0 z-20 h-10 w-full appearance-none bg-transparent [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:cursor-grab [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-brand-primary [&::-moz-range-thumb]:shadow-md [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:cursor-grab [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-brand-primary [&::-webkit-slider-thumb]:shadow-md"
+              aria-label="Minimum tutar"
+            />
+            <input
+              type="range"
+              min={bounds.min}
+              max={bounds.max}
+              value={safeValue.max}
+              onChange={(event) => onMaxChange(Number(event.target.value))}
+              className="pointer-events-none absolute inset-0 z-30 h-10 w-full appearance-none bg-transparent [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:cursor-grab [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-brand-primary [&::-moz-range-thumb]:shadow-md [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:cursor-grab [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-brand-primary [&::-webkit-slider-thumb]:shadow-md"
+              aria-label="Maksimum tutar"
+            />
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
