@@ -487,24 +487,24 @@ export function OrganizationsShowcase({
             )}
 
             <section className="mt-10 flex justify-center">
-              <div className="inline-flex items-center gap-3 rounded-2xl border border-emerald-100 bg-white/90 px-3 py-2 shadow-sm backdrop-blur-sm">
+              <div className="inline-flex items-center gap-2 rounded-full border border-divider-softLight bg-white px-2 py-1.5">
                 <button
                   type="button"
                   onClick={() => handlePaginationChange(Math.max(1, safeCurrentPage - 1))}
                   disabled={safeCurrentPage <= 1}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-200 bg-gradient-to-b from-white to-emerald-50/50 text-base font-semibold text-emerald-800 shadow-[0_1px_0_rgba(16,185,129,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-300 hover:from-emerald-50 hover:to-emerald-100/60 hover:shadow-md active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-45"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold text-text-secondary transition-colors duration-200 hover:bg-surface-categoryLight hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-35"
                   aria-label="Önceki sayfa"
                 >
                   &lt;
                 </button>
-                <p className="min-w-24 text-center text-sm font-semibold text-[#4B5563]">
+                <p className="min-w-20 text-center text-sm font-medium text-text-secondary">
                   {safeCurrentPage} of {totalPages}
                 </p>
                 <button
                   type="button"
                   onClick={() => handlePaginationChange(Math.min(totalPages, safeCurrentPage + 1))}
                   disabled={safeCurrentPage >= totalPages}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-200 bg-gradient-to-b from-white to-emerald-50/50 text-base font-semibold text-emerald-800 shadow-[0_1px_0_rgba(16,185,129,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-300 hover:from-emerald-50 hover:to-emerald-100/60 hover:shadow-md active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-45"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold text-text-secondary transition-colors duration-200 hover:bg-surface-categoryLight hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-35"
                   aria-label="Sonraki sayfa"
                 >
                   &gt;

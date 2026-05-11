@@ -22,6 +22,8 @@ type KurbanComparisonClientProps = {
   categories: Array<{ id: number; name: string }>;
   regions: Array<{ id: number; name: string }>;
   initialCategory?: string;
+  initialRegion?: string;
+  initialSearch?: string;
 };
 
 type SortType = "price" | "popular" | "az";
@@ -53,6 +55,8 @@ export function KurbanComparisonClient({
   categories,
   regions,
   initialCategory,
+  initialRegion,
+  initialSearch,
 }: KurbanComparisonClientProps) {
   const tabsScrollRef = useRef<HTMLDivElement | null>(null);
   const categoryButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -129,6 +133,22 @@ export function KurbanComparisonClient({
       setDraftSortBy(DEFAULT_SORT);
     }
   }, [initialCategory]);
+
+  useEffect(() => {
+    if (!initialRegion) return;
+    const regionExists = regions.some(
+      (region) => normalizeText(region.name) === normalizeText(initialRegion),
+    );
+    if (!regionExists) return;
+    setRegionFilter(initialRegion);
+    setDraftRegionFilter(initialRegion);
+  }, [initialRegion, regions]);
+
+  useEffect(() => {
+    if (!initialSearch) return;
+    setSearch(initialSearch);
+    setDraftSearch(initialSearch);
+  }, [initialSearch]);
 
   useEffect(() => {
     const selectedButton = categoryButtonRefs.current[selectedCategory];

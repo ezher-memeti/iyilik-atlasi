@@ -24,11 +24,13 @@ export const metadata = createSeoMetadata({
 type DonationsPageProps = {
   searchParams: Promise<{
     kategori?: string;
+    bolge?: string;
+    ara?: string;
   }>;
 };
 
 export default async function DonationsPage({ searchParams }: DonationsPageProps) {
-  const { kategori } = await searchParams;
+  const { kategori, bolge, ara } = await searchParams;
   const groups = await getOrganizationGroups();
   const projects = await getAllProjects();
   const categories = await getCategories();
@@ -61,6 +63,8 @@ export default async function DonationsPage({ searchParams }: DonationsPageProps
         categories={categories}
         regions={regions}
         initialCategory={kategori}
+        initialRegion={bolge}
+        initialSearch={ara}
       />
     </main>
   );

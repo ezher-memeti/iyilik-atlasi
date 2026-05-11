@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CategorySlider } from "@/components/CategorySlider";
+import { HeroUnifiedDiscovery } from "@/components/HeroUnifiedDiscovery";
 import { AnimatedStats } from "@/components/hero/AnimatedStats";
 import { OrganizationsPageLink } from "@/components/OrganizationsPageLink";
 import { getCategories } from "@/lib/api/getCategories";
@@ -67,15 +68,14 @@ export default async function HomePage() {
       "Bu kategoriye ait bağış seçeneklerini kurumlara göre inceleyin.",
     href: `/bagislar?kategori=${encodeURIComponent(category.name)}`,
   }));
-
   return (
     <>
-      <section className="relative left-1/2 right-1/2 w-screen -translate-x-1/2 overflow-hidden bg-hero-surface-light py-14 sm:py-20 lg:min-h-[78vh] lg:py-28">
-        <div className="mx-auto flex w-full max-w-[1100px] flex-col justify-center px-14 sm:px-20 lg:min-h-[50vh] lg:px-32">
+      <section className="relative left-1/2 right-1/2 w-screen -translate-x-1/2 overflow-hidden bg-hero-surface-light py-16 sm:py-20 lg:min-h-[78vh] lg:py-24">
+        <div className="mx-auto flex w-full max-w-[1100px] flex-col justify-center px-6 sm:px-10 lg:min-h-[50vh] lg:px-20">
           <p className="mx-auto w-fit px-1 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-brand-primary">
             Bağış Platformu
           </p>
-          <h1 className="mx-auto mt-6 max-w-4xl text-center text-4xl font-bold leading-tight tracking-tight text-text-primary sm:text-5xl lg:text-6xl">
+          <h1 className="mx-auto mt-5 max-w-4xl text-center text-4xl font-bold leading-tight tracking-tight text-text-primary sm:text-5xl lg:text-6xl">
             Bağış kararını
             <span className="text-brand-primary">
               {" "}
@@ -83,11 +83,13 @@ export default async function HomePage() {
             </span>
             şekilde ver.
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-center text-base leading-8 text-text-secondary sm:text-lg">
+          <p className="mx-auto mt-5 max-w-2xl text-center text-base leading-8 text-text-secondary sm:text-lg">
             İyilik Atlası, kurumları ve bağış seçeneklerini aynı yerde sunarak
             en doğru tercihi yapmanı kolaylaştırır.
           </p>
-          <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <HeroUnifiedDiscovery />
+
+          <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <OrganizationsPageLink
               href="/organizations"
               className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-brand-primary px-6 text-sm font-semibold text-white transition hover:bg-brand-secondary sm:w-auto"
@@ -101,13 +103,15 @@ export default async function HomePage() {
               Bağış Seçeneklerini Gör
             </Link>
           </div>
-          <AnimatedStats
-            stats={[
-              { label: "Proje", value: projects.length },
-              { label: "Kurum", value: ngos.length },
-              { label: "Kategori", value: categories.length },
-            ]}
-          />
+          <div className="mt-8">
+            <AnimatedStats
+              stats={[
+                { label: "Proje", value: projects.length },
+                { label: "Kurum", value: ngos.length },
+                { label: "Kategori", value: categories.length },
+              ]}
+            />
+          </div>
         </div>
       </section>
 
