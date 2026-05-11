@@ -41,6 +41,7 @@ export function OrganizationsShowcase({
   categoryOptions,
 }: OrganizationsShowcaseProps) {
   const topAnchorRef = useRef<HTMLDivElement | null>(null);
+  const pageDropdownRef = useRef<HTMLDivElement | null>(null);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<SortType>("default");
   const [cardsPerPage, setCardsPerPage] = useState(DESKTOP_CARDS_PER_PAGE);
@@ -48,6 +49,7 @@ export function OrganizationsShowcase({
   const [selectedRegionIds, setSelectedRegionIds] = useState<number[]>([]);
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([]);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const [isPageDropdownOpen, setIsPageDropdownOpen] = useState(false);
   const [mobileRegionDraft, setMobileRegionDraft] = useState<number[]>([]);
   const [mobileCategoryDraft, setMobileCategoryDraft] = useState<number[]>([]);
   const [regionSearch, setRegionSearch] = useState("");
@@ -71,6 +73,18 @@ export function OrganizationsShowcase({
     updateCardsPerPage();
     window.addEventListener("resize", updateCardsPerPage);
     return () => window.removeEventListener("resize", updateCardsPerPage);
+  }, []);
+
+  useEffect(() => {
+    function handleOutsideClick(event: MouseEvent) {
+      const target = event.target as Node;
+      if (!pageDropdownRef.current?.contains(target)) {
+        setIsPageDropdownOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, []);
 
   const regionCounts = useMemo(() => {
@@ -245,6 +259,7 @@ export function OrganizationsShowcase({
 
   function handlePaginationChange(nextPage: number) {
     setCurrentPage(nextPage);
+    setIsPageDropdownOpen(false);
     requestAnimationFrame(() => {
       topAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
@@ -487,7 +502,10 @@ export function OrganizationsShowcase({
             )}
 
             <section className="mt-10 flex justify-center">
-              <div className="inline-flex items-center gap-2 rounded-full border border-divider-softLight bg-white px-2 py-1.5">
+              <div
+                ref={pageDropdownRef}
+                className="relative inline-flex items-center gap-2 rounded-full border border-divider-softLight bg-white px-2 py-1.5"
+              >
                 <button
                   type="button"
                   onClick={() => handlePaginationChange(Math.max(1, safeCurrentPage - 1))}
@@ -497,9 +515,17 @@ export function OrganizationsShowcase({
                 >
                   &lt;
                 </button>
-                <p className="min-w-20 text-center text-sm font-medium text-text-secondary">
+                <button
+                  type="button"
+                  onClick={() => setIsPageDropdownOpen((prev) => !prev)}
+                  className="inline-flex min-w-24 items-center justify-center gap-1 rounded-full px-2 py-1 text-center text-sm font-medium text-text-secondary transition-colors hover:bg-surface-categoryLight hover:text-text-primary"
+                  aria-haspopup="listbox"
+                  aria-expanded={isPageDropdownOpen}
+                  aria-label="Sayfa seç"
+                >
                   {safeCurrentPage} of {totalPages}
-                </p>
+                  <span className="text-xs">{isPageDropdownOpen ? "▲" : "▼"}</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => handlePaginationChange(Math.min(totalPages, safeCurrentPage + 1))}
@@ -509,6 +535,38 @@ export function OrganizationsShowcase({
                 >
                   &gt;
                 </button>
+
+                {isPageDropdownOpen ? (
+                  <div
+                    className="absolute left-1/2 top-full z-20 mt-2 w-36 -translate-x-1/2 overflow-hidden rounded-xl border border-divider-softLight bg-white shadow-lg"
+                    role="listbox"
+                    aria-label="Sayfa listesi"
+                  >
+                    <ul className="max-h-56 overflow-auto py-1">
+                      {Array.from({ length: totalPages }).map((_, index) => {
+                        const page = index + 1;
+                        const isActive = page === safeCurrentPage;
+                        return (
+                          <li key={page}>
+                            <button
+                              type="button"
+                              onClick={() => handlePaginationChange(page)}
+                              className={`flex w-full items-center justify-between px-3 py-2 text-sm transition ${
+                                isActive
+                                  ? "bg-emerald-50 font-semibold text-emerald-800"
+                                  : "text-text-secondary hover:bg-slate-50 hover:text-text-primary"
+                              }`}
+                              aria-current={isActive ? "page" : undefined}
+                            >
+                              <span>Sayfa {page}</span>
+                              {isActive ? <span>✓</span> : null}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ) : null}
               </div>
             </section>
           </div>
