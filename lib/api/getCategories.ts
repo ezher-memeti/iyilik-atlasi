@@ -4,6 +4,7 @@ export type CategoryItem = {
   id: number;
   name: string;
   description: string | null;
+  image_url: string | null;
 };
 
 type GetCategoriesOptions = {
@@ -13,7 +14,7 @@ type GetCategoriesOptions = {
 export async function getCategories(options: GetCategoriesOptions = {}): Promise<CategoryItem[]> {
   const { isFiltering = false } = options;
   const supabase = await createClient();
-  let query = supabase.from("category").select("id,name,description");
+  let query = supabase.from("category").select("id,name,description,image_url");
   query = isFiltering
     ? query.order("id", { ascending: true })
     : query.order("position", { ascending: true, nullsFirst: false });

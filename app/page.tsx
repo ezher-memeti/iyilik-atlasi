@@ -66,6 +66,7 @@ export default async function HomePage() {
     description:
       category.description?.trim() ||
       "Bu kategoriye ait bağış seçeneklerini kurumlara göre inceleyin.",
+    imageUrl: category.image_url,
     href: `/bagislar?kategori=${encodeURIComponent(category.name)}`,
   }));
   return (
