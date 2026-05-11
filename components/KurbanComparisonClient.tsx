@@ -422,14 +422,6 @@ export function KurbanComparisonClient({
   function handleCategoryChange(category: string) {
     if (category === selectedCategory) return;
     setSelectedCategory(category);
-    setSearch(DEFAULT_SEARCH);
-    setPriceFilter(DEFAULT_PRICE_FILTER);
-    setRegionFilter(DEFAULT_REGION_FILTER);
-    setSortBy(DEFAULT_SORT);
-    setDraftSearch(DEFAULT_SEARCH);
-    setDraftPriceFilter(DEFAULT_PRICE_FILTER);
-    setDraftRegionFilter(DEFAULT_REGION_FILTER);
-    setDraftSortBy(DEFAULT_SORT);
   }
 
   return (
