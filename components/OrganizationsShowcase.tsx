@@ -487,28 +487,30 @@ export function OrganizationsShowcase({
             )}
 
             <section className="mt-10 flex justify-center">
-              <div className="flex items-center gap-2">
+              <div className="inline-flex items-center gap-3 rounded-2xl border border-emerald-100 bg-white/90 px-3 py-2 shadow-sm backdrop-blur-sm">
                 <button
                   type="button"
                   onClick={() => handlePaginationChange(Math.max(1, safeCurrentPage - 1))}
                   disabled={safeCurrentPage <= 1}
-                  className="inline-flex min-h-11 items-center justify-center rounded-md border border-emerald-700/35 bg-white/80 px-4 text-sm font-semibold text-emerald-800 transition hover:border-emerald-700 hover:bg-emerald-50/40 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-200 bg-gradient-to-b from-white to-emerald-50/50 text-base font-semibold text-emerald-800 shadow-[0_1px_0_rgba(16,185,129,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-300 hover:from-emerald-50 hover:to-emerald-100/60 hover:shadow-md active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-45"
+                  aria-label="Önceki sayfa"
                 >
-                  Önceki
+                  &lt;
                 </button>
+                <p className="min-w-24 text-center text-sm font-semibold text-[#4B5563]">
+                  {safeCurrentPage} of {totalPages}
+                </p>
                 <button
                   type="button"
                   onClick={() => handlePaginationChange(Math.min(totalPages, safeCurrentPage + 1))}
                   disabled={safeCurrentPage >= totalPages}
-                  className="inline-flex min-h-11 items-center justify-center rounded-md border border-emerald-700/35 bg-white/80 px-4 text-sm font-semibold text-emerald-800 transition hover:border-emerald-700 hover:bg-emerald-50/40 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-200 bg-gradient-to-b from-white to-emerald-50/50 text-base font-semibold text-emerald-800 shadow-[0_1px_0_rgba(16,185,129,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-300 hover:from-emerald-50 hover:to-emerald-100/60 hover:shadow-md active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-45"
+                  aria-label="Sonraki sayfa"
                 >
-                  Sonraki
+                  &gt;
                 </button>
               </div>
             </section>
-            <p className="mt-3 text-center text-sm font-medium text-[#6B7280]">
-              {safeCurrentPage} of {totalPages}
-            </p>
           </div>
         </section>
 
