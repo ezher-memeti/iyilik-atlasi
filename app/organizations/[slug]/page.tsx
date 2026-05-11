@@ -185,17 +185,6 @@ export default async function OrganizationProfilePage({
           </section>
         )}
 
-        <section>
-          <details className="rounded-xl bg-white/70 p-4 text-sm text-[#6B7280] shadow-sm">
-            <summary className="cursor-pointer font-semibold text-[#1F2937]">
-              Ek Bilgiler
-            </summary>
-            <p className="mt-3 leading-7">
-              Kurumun öne çıkan sektörleri: {organization.sectors || "Belirtilmedi"}
-            </p>
-          </details>
-        </section>
-
         <section className="rounded-2xl bg-white px-6 py-8 text-center shadow-sm">
           <p className="mx-auto max-w-2xl text-sm leading-7 text-[#6B7280]">
             Bağış işlemi bu platform üzerinden yapılmaz. Devam ettiğinizde ilgili
