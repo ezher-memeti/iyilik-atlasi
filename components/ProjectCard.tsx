@@ -41,47 +41,49 @@ export function ProjectCard({
           : "border-slate-200/80 bg-white hover:bg-slate-50"
       }`}
     >
-      <div className="mb-1 flex justify-end sm:hidden">
-        <ProjectShareButton
-          title={project.title}
-          description={project.description}
-          url={`/bagislar?proje=${encodeURIComponent(project.id)}`}
-        />
-      </div>
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4">
         <div className="min-w-0">
-          <Link
-            href={`/organizations/${project.organization.slug}`}
-            className="group inline-flex min-w-0 items-center gap-2 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500/35 focus:ring-offset-2"
-            title={`${project.organization.name} profilini görüntüle`}
-            aria-label={`${project.organization.name} profiline git`}
-          >
-            {project.organization.logoUrl && !logoLoadFailed ? (
-              <img
-                src={project.organization.logoUrl}
-                alt={`${project.organization.name} logosu`}
-                className="h-7 w-7 shrink-0 rounded-full border border-slate-200 bg-white object-contain p-0.5 transition group-hover:border-emerald-300 group-hover:shadow-sm sm:h-8 sm:w-8"
-                loading="lazy"
-                onError={() => setLogoLoadFailed(true)}
+          <div className="flex items-start justify-between gap-2">
+            <Link
+              href={`/organizations/${project.organization.slug}`}
+              className="group inline-flex min-w-0 items-center gap-2 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500/35 focus:ring-offset-2"
+              title={`${project.organization.name} profilini görüntüle`}
+              aria-label={`${project.organization.name} profiline git`}
+            >
+              {project.organization.logoUrl && !logoLoadFailed ? (
+                <img
+                  src={project.organization.logoUrl}
+                  alt={`${project.organization.name} logosu`}
+                  className="h-7 w-7 shrink-0 rounded-full border border-slate-200 bg-white object-contain p-0.5 transition group-hover:border-emerald-300 group-hover:shadow-sm sm:h-8 sm:w-8"
+                  loading="lazy"
+                  onError={() => setLogoLoadFailed(true)}
+                />
+              ) : (
+                <span
+                  aria-hidden="true"
+                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-emerald-50 text-[10px] font-semibold text-emerald-800 transition group-hover:border-emerald-300 group-hover:bg-emerald-100 sm:h-8 sm:w-8"
+                >
+                  {ngoInitials || "NG"}
+                </span>
+              )}
+              <div className="min-w-0">
+                <p className="line-clamp-2 break-words text-[11px] font-semibold uppercase leading-4 tracking-wide text-emerald-700/90 underline-offset-2 transition group-hover:text-emerald-800 group-hover:underline sm:text-xs">
+                  {project.organization.name}
+                </p>
+                <p className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700/70 transition group-hover:text-emerald-800">
+                  Profili görüntüle
+                  <span aria-hidden="true" className="transition group-hover:translate-x-0.5">↗</span>
+                </p>
+              </div>
+            </Link>
+            <div className="sm:hidden">
+              <ProjectShareButton
+                title={project.title}
+                description={project.description}
+                url={`/bagislar?proje=${encodeURIComponent(project.id)}`}
               />
-            ) : (
-              <span
-                aria-hidden="true"
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-emerald-50 text-[10px] font-semibold text-emerald-800 transition group-hover:border-emerald-300 group-hover:bg-emerald-100 sm:h-8 sm:w-8"
-              >
-                {ngoInitials || "NG"}
-              </span>
-            )}
-            <div className="min-w-0">
-              <p className="line-clamp-2 break-words text-[11px] font-semibold uppercase leading-4 tracking-wide text-emerald-700/90 underline-offset-2 transition group-hover:text-emerald-800 group-hover:underline sm:text-xs">
-                {project.organization.name}
-              </p>
-              <p className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700/70 transition group-hover:text-emerald-800">
-                Profili görüntüle
-                <span aria-hidden="true" className="transition group-hover:translate-x-0.5">↗</span>
-              </p>
             </div>
-          </Link>
+          </div>
 
           <div className="mt-1.5 flex items-center gap-2 sm:mt-2">
             <h3 className="line-clamp-2 text-[17px] font-semibold leading-6 text-[#1F2937] sm:text-lg">
