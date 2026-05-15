@@ -2,6 +2,7 @@ import common from "@/content/common.json";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { SafeLink } from "@/components/SafeLink";
+import { ProjectShareButton } from "@/components/ProjectShareButton";
 import { formatPrice, type KurbanProjectWithOrganization } from "@/lib/donationModels";
 
 type ProjectCardProps = {
@@ -33,12 +34,20 @@ export function ProjectCard({
 
   return (
     <article
+      id={`project-${project.id}`}
       className={`overflow-hidden rounded-2xl border p-3.5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md sm:p-4 ${
         selected
           ? "border-emerald-500 bg-emerald-500/8 ring-1 ring-emerald-500/35"
           : "border-slate-200/80 bg-white hover:bg-slate-50"
       }`}
     >
+      <div className="mb-1 flex justify-end sm:hidden">
+        <ProjectShareButton
+          title={project.title}
+          description={project.description}
+          url={`/bagislar?proje=${encodeURIComponent(project.id)}`}
+        />
+      </div>
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4">
         <div className="min-w-0">
           <Link
@@ -74,9 +83,18 @@ export function ProjectCard({
             </div>
           </Link>
 
-          <h3 className="mt-1.5 line-clamp-2 text-[17px] font-semibold leading-6 text-[#1F2937] sm:mt-2 sm:text-lg">
-            {project.title}
-          </h3>
+          <div className="mt-1.5 flex items-center gap-2 sm:mt-2">
+            <h3 className="line-clamp-2 text-[17px] font-semibold leading-6 text-[#1F2937] sm:text-lg">
+              {project.title}
+            </h3>
+            <div className="hidden shrink-0 sm:block">
+              <ProjectShareButton
+                title={project.title}
+                description={project.description}
+                url={`/bagislar?proje=${encodeURIComponent(project.id)}`}
+              />
+            </div>
+          </div>
 
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5 sm:mt-2">
             {project.categories[0] ? (

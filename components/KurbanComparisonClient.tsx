@@ -13,6 +13,7 @@ type KurbanComparisonClientProps = {
   initialCategory?: string;
   initialRegion?: string;
   initialSearch?: string;
+  initialProjectId?: string;
 };
 
 type SortType = "price" | "popular" | "az" | "ngo";
@@ -156,11 +157,13 @@ export function KurbanComparisonClient({
   initialCategory,
   initialRegion,
   initialSearch,
+  initialProjectId,
 }: KurbanComparisonClientProps) {
   const tabsScrollRef = useRef<HTMLDivElement | null>(null);
   const resultsTopRef = useRef<HTMLDivElement | null>(null);
   const categoryButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const lastAppliedInitialCategoryRef = useRef<string>("");
+  const hasHandledInitialProjectRef = useRef(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isCompareOpen, setIsCompareOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(
@@ -728,6 +731,28 @@ export function KurbanComparisonClient({
       setCurrentPage(totalPages);
     }
   }, [currentPage, totalPages]);
+
+  useEffect(() => {
+    if (!initialProjectId || hasHandledInitialProjectRef.current) return;
+    const targetIndex = filteredProjects.findIndex((project) => project.id === initialProjectId);
+    if (targetIndex === -1) return;
+
+    const page = Math.floor(targetIndex / PROJECTS_PER_PAGE) + 1;
+    if (page !== currentPage) {
+      setCurrentPage(page);
+      return;
+    }
+
+    hasHandledInitialProjectRef.current = true;
+    const elementId = `project-${initialProjectId}`;
+    const scrollToTarget = () => {
+      const element = document.getElementById(elementId);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    };
+    requestAnimationFrame(scrollToTarget);
+  }, [currentPage, filteredProjects, initialProjectId]);
 
   useEffect(() => {
     resultsTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
