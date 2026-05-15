@@ -43,6 +43,7 @@ function mapProject(project: ProjectListItem): KurbanProjectWithOrganization {
       id: ngoId,
       name: ngoName,
       slug: createSlug(ngoName),
+      logoUrl: project.ngo?.logo_url ?? undefined,
     },
     categories: project.categories,
   };

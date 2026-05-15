@@ -90,7 +90,7 @@ export default async function HomePage() {
           </p>
           <HeroUnifiedDiscovery />
 
-          <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
             <OrganizationsPageLink
               href="/organizations"
               className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-brand-primary px-6 text-sm font-semibold text-white transition hover:bg-brand-secondary sm:w-auto"
@@ -104,7 +104,7 @@ export default async function HomePage() {
               Bağış Seçeneklerini Gör
             </Link>
           </div>
-          <div className="mt-8">
+          <div className="mt-5">
             <AnimatedStats
               stats={[
                 { label: "Proje", value: projects.length },

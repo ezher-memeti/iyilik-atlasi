@@ -3,7 +3,7 @@ import { createSeoMetadata } from "@/components/SEO";
 import pages from "@/content/pages.json";
 import { getCategories } from "@/lib/api/getCategories";
 import { getRegions } from "@/lib/api/getRegions";
-import { getAllProjects, getOrganizationGroups } from "@/lib/kurban";
+import { getAllProjects } from "@/lib/kurban";
 
 export const metadata = createSeoMetadata({
   title: "Bağış Seçenekleri Karşılaştırma 2026 | Kategori Bazlı İnceleme",
@@ -31,7 +31,6 @@ type DonationsPageProps = {
 
 export default async function DonationsPage({ searchParams }: DonationsPageProps) {
   const { kategori, bolge, ara } = await searchParams;
-  const groups = await getOrganizationGroups();
   const projects = await getAllProjects();
   const categories = await getCategories();
   const regions = await getRegions();
@@ -58,7 +57,6 @@ export default async function DonationsPage({ searchParams }: DonationsPageProps
       </p>
 
       <KurbanComparisonClient
-        groups={groups}
         projects={projects}
         categories={categories}
         regions={regions}

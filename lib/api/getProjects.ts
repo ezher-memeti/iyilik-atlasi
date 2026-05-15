@@ -8,6 +8,7 @@ export type ProjectListItem = {
   ngo: {
     id: number;
     name: string;
+    logo_url?: string | null;
   } | null;
   bolgeler: Array<{
     id: number;
@@ -28,7 +29,7 @@ type ProjectQueryRow = {
   title: string;
   price: number | null;
   donation_url: string;
-  ngo: { id: number; name: string } | null;
+  ngo: { id: number; name: string; logo_url?: string | null } | null;
   project_bolge:
     | Array<{
         bolge: { id: number; name: string } | { id: number; name: string }[] | null;
@@ -52,7 +53,8 @@ export async function getProjects(options: GetProjectsOptions = {}): Promise<Pro
       donation_url,
       ngo:ngo_id (
         id,
-        name
+        name,
+        logo_url
       ),
       project_bolge (
         bolge:bolge_id (

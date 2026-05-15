@@ -6,18 +6,7 @@ import { ProjectCard } from "@/components/ProjectCard";
 import common from "@/content/common.json";
 import { formatPrice, type KurbanProjectWithOrganization } from "@/lib/donationModels";
 
-type OrganizationGroup = {
-  organization: {
-    name: string;
-    slug: string;
-    description?: string;
-    founded?: string;
-  };
-  projects: KurbanProjectWithOrganization[];
-};
-
 type KurbanComparisonClientProps = {
-  groups: OrganizationGroup[];
   projects: KurbanProjectWithOrganization[];
   categories: Array<{ id: number; name: string }>;
   regions: Array<{ id: number; name: string }>;
@@ -26,13 +15,15 @@ type KurbanComparisonClientProps = {
   initialSearch?: string;
 };
 
-type SortType = "price" | "popular" | "az";
+type SortType = "price" | "popular" | "az" | "ngo";
 type PriceBounds = { min: number; max: number };
 
 const DEFAULT_SEARCH = "";
-const DEFAULT_REGION_FILTER = "all";
+const DEFAULT_REGION_FILTER: string[] = [];
+const DEFAULT_NGO_FILTER: string[] = [];
 const DEFAULT_SORT: SortType = "popular";
 const DEFAULT_CATEGORY = "Kurban";
+const PROJECTS_PER_PAGE = 24;
 
 function normalizeText(value: string) {
   return value.toLocaleLowerCase("tr-TR");
@@ -54,7 +45,7 @@ function getProjectRegions(project: KurbanProjectWithOrganization) {
 }
 
 function getPositivePrice(project: KurbanProjectWithOrganization) {
-  return project.price > 0 ? project.price : null;
+  return project.price >= 0 ? project.price : null;
 }
 
 function clampRangeToBounds(range: PriceBounds, bounds: PriceBounds): PriceBounds {
@@ -95,8 +86,70 @@ function getPriceHistogram(prices: number[], bounds: PriceBounds | null, preferr
   }));
 }
 
+function formatDiscoveryCount(count: number) {
+  return new Intl.NumberFormat("tr-TR").format(count);
+}
+
+function includesText(value: string, query: string) {
+  const normalizedValue = value.toLocaleLowerCase("tr-TR");
+  const normalizedQuery = query.trim().toLocaleLowerCase("tr-TR");
+  if (!normalizedQuery) return true;
+  return normalizedValue.includes(normalizedQuery);
+}
+
+function matchesCategoryAndSearch(
+  project: KurbanProjectWithOrganization,
+  selectedCategory: string,
+  search: string,
+) {
+  const selectedCategoryNormalized = normalizeText(selectedCategory);
+  const query = search.trim().toLocaleLowerCase("tr-TR");
+  const categoryNames = project.categories.map((category) => normalizeText(category.name));
+  const normalizedTitle = normalizeText(project.title);
+  const normalizedDescription = normalizeText(project.description);
+
+  const categoryMatch =
+    selectedCategoryNormalized === normalizeText(DEFAULT_CATEGORY)
+      ? categoryNames.length === 0 ||
+      categoryNames.some((name) => name.includes("kurban")) ||
+      normalizedTitle.includes("kurban") ||
+      normalizedDescription.includes("kurban")
+      : categoryNames.length === 0
+        ? normalizedTitle.includes(selectedCategoryNormalized) ||
+        normalizedDescription.includes(selectedCategoryNormalized)
+        : categoryNames.some((name) => name.includes(selectedCategoryNormalized));
+
+  if (!categoryMatch) return false;
+  if (!query) return true;
+
+  return (
+    project.organization.name.toLocaleLowerCase("tr-TR").includes(query) ||
+    project.title.toLocaleLowerCase("tr-TR").includes(query) ||
+    project.description.toLocaleLowerCase("tr-TR").includes(query)
+  );
+}
+
+function matchesRegion(project: KurbanProjectWithOrganization, regionFilter: string[]) {
+  if (regionFilter.length === 0) return true;
+  const normalizedRegionFilters = new Set(regionFilter.map((region) => normalizeText(region)));
+  const projectRegions = getProjectRegions(project).map((region) => normalizeText(region));
+  return projectRegions.some((region) => normalizedRegionFilters.has(region));
+}
+
+function matchesNgo(project: KurbanProjectWithOrganization, ngoFilter: string[]) {
+  if (ngoFilter.length === 0) return true;
+  const normalizedNgoFilters = new Set(ngoFilter.map((ngo) => normalizeText(ngo)));
+  return normalizedNgoFilters.has(normalizeText(project.organization.name));
+}
+
+function matchesPriceRange(project: KurbanProjectWithOrganization, effectivePriceRange: PriceBounds | null) {
+  if (!effectivePriceRange) return true;
+  const price = getPositivePrice(project);
+  if (price === null) return false;
+  return price >= effectivePriceRange.min && price <= effectivePriceRange.max;
+}
+
 export function KurbanComparisonClient({
-  groups,
   projects,
   categories,
   regions,
@@ -105,6 +158,7 @@ export function KurbanComparisonClient({
   initialSearch,
 }: KurbanComparisonClientProps) {
   const tabsScrollRef = useRef<HTMLDivElement | null>(null);
+  const resultsTopRef = useRef<HTMLDivElement | null>(null);
   const categoryButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const lastAppliedInitialCategoryRef = useRef<string>("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -112,25 +166,33 @@ export function KurbanComparisonClient({
   const [selectedCategory, setSelectedCategory] = useState(
     cleanCategoryLabel(initialCategory ?? "") || DEFAULT_CATEGORY,
   );
-  const [openOrganization, setOpenOrganization] = useState(
-    groups[0]?.organization.slug ?? "",
-  );
 
   const [search, setSearch] = useState(DEFAULT_SEARCH);
   const [selectedPriceRange, setSelectedPriceRange] = useState<PriceBounds | null>(null);
+  const [isPriceSetByUser, setIsPriceSetByUser] = useState(false);
+  const [userPreferredPriceRange, setUserPreferredPriceRange] = useState<PriceBounds | null>(null);
   const [regionFilter, setRegionFilter] = useState(DEFAULT_REGION_FILTER);
+  const [ngoFilter, setNgoFilter] = useState(DEFAULT_NGO_FILTER);
+  const [regionSearch, setRegionSearch] = useState("");
+  const [ngoSearch, setNgoSearch] = useState("");
   const [sortBy, setSortBy] = useState<SortType>(DEFAULT_SORT);
-
-  const [expandedOrg, setExpandedOrg] = useState<Record<string, boolean>>({});
+  const [isRegionCardOpen, setIsRegionCardOpen] = useState(false);
+  const [isNgoCardOpen, setIsNgoCardOpen] = useState(false);
 
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
-  const [mobileSheetMode, setMobileSheetMode] = useState<"filter" | "sort">(
-    "filter",
-  );
+  const [currentPage, setCurrentPage] = useState(1);
   const [draftSearch, setDraftSearch] = useState(DEFAULT_SEARCH);
   const [draftPriceRange, setDraftPriceRange] = useState<PriceBounds | null>(null);
+  const [isDraftPriceSetByUser, setIsDraftPriceSetByUser] = useState(false);
+  const [draftUserPreferredPriceRange, setDraftUserPreferredPriceRange] = useState<PriceBounds | null>(
+    null,
+  );
   const [draftRegionFilter, setDraftRegionFilter] = useState(DEFAULT_REGION_FILTER);
-  const [draftSortBy, setDraftSortBy] = useState<SortType>(DEFAULT_SORT);
+  const [draftRegionSearch, setDraftRegionSearch] = useState("");
+  const [draftNgoFilter, setDraftNgoFilter] = useState(DEFAULT_NGO_FILTER);
+  const [draftNgoSearch, setDraftNgoSearch] = useState("");
+  const [isMobileRegionOpen, setIsMobileRegionOpen] = useState(false);
+  const [isMobileNgoOpen, setIsMobileNgoOpen] = useState(false);
   const [showTabArrows, setShowTabArrows] = useState(false);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -148,6 +210,20 @@ export function KurbanComparisonClient({
 
     return unique;
   }, [categories]);
+
+  const selectedSortLabel = useMemo(() => {
+    switch (sortBy) {
+      case "price":
+        return "En uygun tutar";
+      case "az":
+        return "A-Z";
+      case "ngo":
+        return "Kurumlara göre sırala";
+      case "popular":
+      default:
+        return "Varsayılan";
+    }
+  }, [sortBy]);
 
   useEffect(() => {
     const exists = categoryTabs.some(
@@ -172,11 +248,18 @@ export function KurbanComparisonClient({
       setSearch(DEFAULT_SEARCH);
       setSelectedPriceRange(null);
       setRegionFilter(DEFAULT_REGION_FILTER);
+      setNgoFilter(DEFAULT_NGO_FILTER);
+      setNgoSearch("");
+      setIsPriceSetByUser(false);
+      setUserPreferredPriceRange(null);
       setSortBy(DEFAULT_SORT);
       setDraftSearch(DEFAULT_SEARCH);
       setDraftPriceRange(null);
+      setIsDraftPriceSetByUser(false);
+      setDraftUserPreferredPriceRange(null);
       setDraftRegionFilter(DEFAULT_REGION_FILTER);
-      setDraftSortBy(DEFAULT_SORT);
+      setDraftNgoFilter(DEFAULT_NGO_FILTER);
+      setDraftNgoSearch("");
     }
   }, [initialCategory]);
 
@@ -186,8 +269,8 @@ export function KurbanComparisonClient({
       (region) => normalizeText(region.name) === normalizeText(initialRegion),
     );
     if (!regionExists) return;
-    setRegionFilter(initialRegion);
-    setDraftRegionFilter(initialRegion);
+    setRegionFilter([initialRegion]);
+    setDraftRegionFilter([initialRegion]);
   }, [initialRegion, regions]);
 
   useEffect(() => {
@@ -211,91 +294,30 @@ export function KurbanComparisonClient({
     [projects, selectedIds],
   );
 
-  const selectedCountByOrg = useMemo(() => {
-    const map: Record<string, number> = {};
+  const ngoOptions = useMemo(
+    () =>
+      Array.from(new Set(projects.map((project) => project.organization.name)))
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b, "tr")),
+    [projects],
+  );
 
-    groups.forEach((group) => {
-      map[group.organization.slug] = group.projects.filter((project) =>
-        selectedIds.includes(project.id),
-      ).length;
-    });
+  const projectsAfterCategorySearch = useMemo(
+    () =>
+      projects.filter((project) => matchesCategoryAndSearch(project, selectedCategory, search)),
+    [projects, search, selectedCategory],
+  );
 
-    return map;
-  }, [groups, selectedIds]);
-
-  const baseFilteredGroups = useMemo(() => {
-    const query = search.trim().toLocaleLowerCase("tr-TR");
-    const selectedCategoryNormalized = normalizeText(selectedCategory);
-
-    return groups
-      .map((group) => {
-        const filteredProjects = group.projects
-          .filter((project) => {
-            const categoryNames = project.categories.map((category) =>
-              normalizeText(category.name),
-            );
-            const normalizedTitle = normalizeText(project.title);
-            const normalizedDescription = normalizeText(project.description);
-
-            if (selectedCategoryNormalized === normalizeText(DEFAULT_CATEGORY)) {
-              if (categoryNames.length === 0) {
-                return true;
-              }
-              return (
-                categoryNames.some((name) => name.includes("kurban")) ||
-                normalizedTitle.includes("kurban") ||
-                normalizedDescription.includes("kurban")
-              );
-            }
-
-            if (categoryNames.length === 0) {
-              return (
-                normalizedTitle.includes(selectedCategoryNormalized) ||
-                normalizedDescription.includes(selectedCategoryNormalized)
-              );
-            }
-
-            return categoryNames.some((name) => name.includes(selectedCategoryNormalized));
-          })
-          .filter((project) => {
-            if (!query) {
-              return true;
-            }
-
-            return (
-              group.organization.name.toLocaleLowerCase("tr-TR").includes(query) ||
-              project.title.toLocaleLowerCase("tr-TR").includes(query) ||
-              project.description.toLocaleLowerCase("tr-TR").includes(query)
-            );
-          })
-          .filter((project) => {
-            if (regionFilter === "all") {
-              return true;
-            }
-
-            const normalizedRegionFilter = normalizeText(regionFilter);
-            const projectRegions = (project.regions ?? (project.region ? [project.region] : []))
-              .map((region) => normalizeText(region));
-            return projectRegions.includes(normalizedRegionFilter);
-          })
-          .sort((a, b) => {
-            if (sortBy === "az") {
-              return a.title.localeCompare(b.title, "tr");
-            }
-            return 0;
-          });
-
-        return {
-          ...group,
-          projects: filteredProjects,
-        };
-      })
-      .filter((group) => group.projects.length > 0);
-  }, [groups, regionFilter, search, selectedCategory, sortBy]);
+  const baseFilteredProjects = useMemo(
+    () =>
+      projectsAfterCategorySearch
+        .filter((project) => matchesRegion(project, regionFilter))
+        .filter((project) => matchesNgo(project, ngoFilter)),
+    [ngoFilter, projectsAfterCategorySearch, regionFilter],
+  );
 
   const availablePriceBounds = useMemo<PriceBounds | null>(() => {
-    const prices = baseFilteredGroups
-      .flatMap((group) => group.projects)
+    const prices = baseFilteredProjects
       .map(getPositivePrice)
       .filter((price): price is number => price !== null);
 
@@ -305,15 +327,14 @@ export function KurbanComparisonClient({
       min: Math.min(...prices),
       max: Math.max(...prices),
     };
-  }, [baseFilteredGroups]);
+  }, [baseFilteredProjects]);
 
   const priceDistribution = useMemo(() => {
-    const prices = baseFilteredGroups
-      .flatMap((group) => group.projects)
+    const prices = baseFilteredProjects
       .map(getPositivePrice)
       .filter((price): price is number => price !== null);
     return getPriceHistogram(prices, availablePriceBounds, 22);
-  }, [availablePriceBounds, baseFilteredGroups]);
+  }, [availablePriceBounds, baseFilteredProjects]);
 
   useEffect(() => {
     if (!availablePriceBounds) {
@@ -326,20 +347,38 @@ export function KurbanComparisonClient({
       return;
     }
 
-    if (selectedPriceRange) {
+    if (isPriceSetByUser && userPreferredPriceRange) {
+      const restored = clampRangeToBounds(userPreferredPriceRange, availablePriceBounds);
+      if (!areRangesEqual(restored, selectedPriceRange)) {
+        setSelectedPriceRange(restored);
+      }
+    } else if (selectedPriceRange) {
       const clamped = clampRangeToBounds(selectedPriceRange, availablePriceBounds);
       if (!areRangesEqual(clamped, selectedPriceRange)) {
         setSelectedPriceRange(clamped);
       }
     }
 
-    if (draftPriceRange) {
+    if (isDraftPriceSetByUser && draftUserPreferredPriceRange) {
+      const restoredDraft = clampRangeToBounds(draftUserPreferredPriceRange, availablePriceBounds);
+      if (!areRangesEqual(restoredDraft, draftPriceRange)) {
+        setDraftPriceRange(restoredDraft);
+      }
+    } else if (draftPriceRange) {
       const clampedDraft = clampRangeToBounds(draftPriceRange, availablePriceBounds);
       if (!areRangesEqual(clampedDraft, draftPriceRange)) {
         setDraftPriceRange(clampedDraft);
       }
     }
-  }, [availablePriceBounds, draftPriceRange, selectedPriceRange]);
+  }, [
+    availablePriceBounds,
+    draftPriceRange,
+    draftUserPreferredPriceRange,
+    isDraftPriceSetByUser,
+    isPriceSetByUser,
+    selectedPriceRange,
+    userPreferredPriceRange,
+  ]);
 
   const effectivePriceRange = useMemo<PriceBounds | null>(() => {
     if (!availablePriceBounds) return null;
@@ -347,43 +386,52 @@ export function KurbanComparisonClient({
     return clampRangeToBounds(selectedPriceRange, availablePriceBounds);
   }, [availablePriceBounds, selectedPriceRange]);
 
-  const filteredGroups = useMemo(() => {
-    return baseFilteredGroups
-      .map((group) => {
-        const filteredProjects = group.projects
-          .filter((project) => {
-            if (!effectivePriceRange) return true;
-            const price = getPositivePrice(project);
-            if (price === null) return false;
-            return price >= effectivePriceRange.min && price <= effectivePriceRange.max;
-          })
-          .sort((a, b) => {
-            if (sortBy === "price") {
-              const aPrice = a.price > 0 ? a.price : Number.MAX_SAFE_INTEGER;
-              const bPrice = b.price > 0 ? b.price : Number.MAX_SAFE_INTEGER;
-              return aPrice - bPrice;
-            }
-
-            if (sortBy === "az") {
-              return a.title.localeCompare(b.title, "tr");
-            }
-
-            return 0;
-          });
-
-        return {
-          ...group,
-          projects: filteredProjects,
-        };
+  const filteredProjects = useMemo(() => {
+    return baseFilteredProjects
+      .filter((project) => {
+        return matchesPriceRange(project, effectivePriceRange);
       })
-      .filter((group) => group.projects.length > 0);
-  }, [baseFilteredGroups, effectivePriceRange, sortBy]);
+      .sort((a, b) => {
+        if (sortBy === "price") {
+          const aPrice = a.price >= 0 ? a.price : Number.MAX_SAFE_INTEGER;
+          const bPrice = b.price >= 0 ? b.price : Number.MAX_SAFE_INTEGER;
+          return aPrice - bPrice;
+        }
+
+        if (sortBy === "ngo") {
+          const ngoCompare = a.organization.name.localeCompare(b.organization.name, "tr");
+          if (ngoCompare !== 0) return ngoCompare;
+          return a.title.localeCompare(b.title, "tr");
+        }
+
+        if (sortBy === "az") {
+          return a.title.localeCompare(b.title, "tr");
+        }
+
+        return 0;
+      });
+  }, [baseFilteredProjects, effectivePriceRange, sortBy]);
+
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(filteredProjects.length / PROJECTS_PER_PAGE)),
+    [filteredProjects.length],
+  );
+
+  const visibleProjects = useMemo(() => {
+    const from = (currentPage - 1) * PROJECTS_PER_PAGE;
+    const to = from + PROJECTS_PER_PAGE;
+    return filteredProjects.slice(from, to);
+  }, [currentPage, filteredProjects]);
 
   const activeFilterSummary = useMemo(() => {
     const parts: string[] = [];
 
-    if (regionFilter !== "all") {
-      parts.push(regionFilter);
+    if (regionFilter.length > 0) {
+      parts.push(regionFilter.join(", "));
+    }
+
+    if (ngoFilter.length > 0) {
+      parts.push(`${ngoFilter.length} kurum`);
     }
 
     if (effectivePriceRange && availablePriceBounds) {
@@ -400,22 +448,114 @@ export function KurbanComparisonClient({
     }
 
     return parts.length ? parts.join(" • ") : "Tüm projeler";
-  }, [availablePriceBounds, effectivePriceRange, regionFilter, search]);
+  }, [availablePriceBounds, effectivePriceRange, ngoFilter.length, regionFilter, search]);
 
-  useEffect(() => {
-    if (!filteredGroups.length) {
-      setOpenOrganization("");
-      return;
+  const resultHeader = useMemo(() => {
+    const count = filteredProjects.length;
+    const countText = formatDiscoveryCount(count);
+    const cleanedSearch = search.trim();
+    const hasSearch = cleanedSearch.length > 0;
+    const hasRegion = regionFilter.length > 0;
+    const hasSingleRegion = regionFilter.length === 1;
+    const hasCategory = normalizeText(selectedCategory) !== normalizeText(DEFAULT_CATEGORY);
+    const categoryLabel = hasCategory ? selectedCategory : "Kurban";
+    const regionLabel = hasSingleRegion
+      ? regionFilter[0]
+      : `${regionFilter.length} bölge`;
+
+    if (hasSearch) {
+      return {
+        title: `"${cleanedSearch}" için ${countText} sonuç`,
+        subtitle: "Aramaya en uygun bağış projelerini inceliyorsunuz.",
+      };
     }
 
-    const exists = filteredGroups.some(
-      (group) => group.organization.slug === openOrganization,
-    );
-
-    if (!exists) {
-      setOpenOrganization(filteredGroups[0].organization.slug);
+    if (hasRegion && hasCategory) {
+      return {
+        title: `${regionLabel} bölgesinde ${categoryLabel} için ${countText} proje`,
+        subtitle: "Bölge ve kategoriye göre eşleşen projeler listeleniyor.",
+      };
     }
-  }, [filteredGroups, openOrganization]);
+
+    if (hasCategory) {
+      return {
+        title: `${categoryLabel} kategorisinde ${countText} proje`,
+        subtitle: "Bu kategorideki bağış seçeneklerini keşfedin.",
+      };
+    }
+
+    if (hasRegion) {
+      return {
+        title: `${regionLabel} için ${countText} bağış seçeneği`,
+        subtitle: "Seçtiğiniz bölgelerdeki projeler listeleniyor.",
+      };
+    }
+
+    return {
+      title: `Keşfedilecek ${countText} bağış seçeneği`,
+      subtitle: "Tüm bağış projeleri arasından size uygun olanı bulun.",
+    };
+  }, [filteredProjects.length, regionFilter, search, selectedCategory]);
+
+  const dynamicRegionCounts = useMemo(() => {
+    const manualPriceRange = isPriceSetByUser ? effectivePriceRange : null;
+    const counts = new Map<string, number>();
+    projectsAfterCategorySearch
+      .filter((project) => matchesNgo(project, ngoFilter))
+      .filter((project) => matchesPriceRange(project, manualPriceRange))
+      .forEach((project) => {
+        getProjectRegions(project).forEach((region) => {
+          counts.set(region, (counts.get(region) ?? 0) + 1);
+        });
+      });
+    return counts;
+  }, [effectivePriceRange, isPriceSetByUser, ngoFilter, projectsAfterCategorySearch]);
+
+  const dynamicNgoCounts = useMemo(() => {
+    const manualPriceRange = isPriceSetByUser ? effectivePriceRange : null;
+    const counts = new Map<string, number>();
+    projectsAfterCategorySearch
+      .filter((project) => matchesRegion(project, regionFilter))
+      .filter((project) => matchesPriceRange(project, manualPriceRange))
+      .forEach((project) => {
+        const ngo = project.organization.name;
+        counts.set(ngo, (counts.get(ngo) ?? 0) + 1);
+      });
+    return counts;
+  }, [effectivePriceRange, isPriceSetByUser, projectsAfterCategorySearch, regionFilter]);
+
+  const visibleNgoOptions = useMemo(() => {
+    const query = normalizeText(ngoSearch.trim());
+    if (!query) return ngoOptions;
+    return ngoOptions.filter((ngo) => normalizeText(ngo).includes(query));
+  }, [ngoOptions, ngoSearch]);
+
+  const visibleRegionOptions = useMemo(() => {
+    return regions.filter((region) => includesText(region.name, regionSearch));
+  }, [regionFilter, regionSearch, regions]);
+
+  const visibleDraftNgoOptions = useMemo(() => {
+    const query = normalizeText(draftNgoSearch.trim());
+    if (!query) return ngoOptions;
+    return ngoOptions.filter((ngo) => normalizeText(ngo).includes(query));
+  }, [draftNgoSearch, ngoOptions]);
+
+  const visibleDraftRegionOptions = useMemo(
+    () => regions.filter((region) => includesText(region.name, draftRegionSearch)),
+    [draftRegionSearch, regions],
+  );
+
+  const visibleRegionListedCount = useMemo(
+    () =>
+      visibleRegionOptions.filter((region) => (dynamicRegionCounts.get(region.name) ?? 0) > 0)
+        .length,
+    [dynamicRegionCounts, visibleRegionOptions],
+  );
+
+  const visibleNgoListedCount = useMemo(
+    () => visibleNgoOptions.filter((ngo) => (dynamicNgoCounts.get(ngo) ?? 0) > 0).length,
+    [dynamicNgoCounts, visibleNgoOptions],
+  );
 
   const updateTabScrollState = useCallback(() => {
     const el = tabsScrollRef.current;
@@ -441,45 +581,6 @@ export function KurbanComparisonClient({
     };
   }, [updateTabScrollState, categoryTabs]);
 
-  const recommendedProjectIds = useMemo(() => {
-    const map: Record<string, string> = {};
-
-    filteredGroups.forEach((group) => {
-      const nonZero = group.projects.filter((project) => project.price > 0);
-      const recommended =
-        nonZero.sort((a, b) => a.price - b.price)[0] ?? group.projects[0];
-
-      if (recommended) {
-        map[group.organization.slug] = recommended.id;
-      }
-    });
-
-    return map;
-  }, [filteredGroups]);
-
-  const pricePreviewByOrg = useMemo(() => {
-    const map: Record<string, string | null> = {};
-
-    filteredGroups.forEach((group) => {
-      const prices = group.projects
-        .map((project) => project.price)
-        .filter((price) => price > 0)
-        .sort((a, b) => a - b);
-
-      if (prices.length === 0) {
-        map[group.organization.slug] = null;
-        return;
-      }
-
-      const min = prices[0];
-      const max = prices[prices.length - 1];
-      map[group.organization.slug] =
-        min === max ? formatPrice(min) : `${formatPrice(min)} – ${formatPrice(max)}`;
-    });
-
-    return map;
-  }, [filteredGroups]);
-
   function toggleProject(projectId: string) {
     setSelectedIds((current) =>
       current.includes(projectId)
@@ -497,39 +598,72 @@ export function KurbanComparisonClient({
     setSelectedIds((current) => current.filter((id) => id !== projectId));
   }
 
-  function toggleExpand(slug: string) {
-    setExpandedOrg((current) => ({
-      ...current,
-      [slug]: !current[slug],
-    }));
-  }
-
-  function openMobileSheet(mode: "filter" | "sort") {
-    setMobileSheetMode(mode);
+  function openMobileSheet() {
     setDraftSearch(search);
     setDraftPriceRange(selectedPriceRange);
+    setIsDraftPriceSetByUser(false);
+    setDraftUserPreferredPriceRange(userPreferredPriceRange);
     setDraftRegionFilter(regionFilter);
-    setDraftSortBy(sortBy);
+    setDraftRegionSearch("");
+    setDraftNgoFilter(ngoFilter);
+    setDraftNgoSearch("");
+    setIsMobileRegionOpen(false);
+    setIsMobileNgoOpen(false);
     setIsMobileFilterOpen(true);
   }
 
   function applyMobileFilters() {
     setSearch(draftSearch);
     setSelectedPriceRange(draftPriceRange);
+    if (isDraftPriceSetByUser) {
+      setIsPriceSetByUser(true);
+      setUserPreferredPriceRange(draftUserPreferredPriceRange ?? draftPriceRange);
+    }
     setRegionFilter(draftRegionFilter);
-    setSortBy(draftSortBy);
+    setNgoFilter(draftNgoFilter);
     setIsMobileFilterOpen(false);
   }
 
   function clearMobileFilters() {
     setDraftSearch(DEFAULT_SEARCH);
     setDraftPriceRange(null);
-    setDraftRegionFilter(DEFAULT_REGION_FILTER);
-    setDraftSortBy(DEFAULT_SORT);
+    setIsDraftPriceSetByUser(false);
+    setDraftUserPreferredPriceRange(null);
+    setDraftRegionFilter([]);
+    setDraftNgoFilter([]);
+    setDraftNgoSearch("");
     setSearch(DEFAULT_SEARCH);
     setSelectedPriceRange(null);
-    setRegionFilter(DEFAULT_REGION_FILTER);
+    setIsPriceSetByUser(false);
+    setUserPreferredPriceRange(null);
+    setRegionFilter([]);
+    setNgoFilter([]);
+    setNgoSearch("");
     setSortBy(DEFAULT_SORT);
+  }
+
+  function toggleRegion(name: string) {
+    setRegionFilter((current) =>
+      current.includes(name) ? current.filter((item) => item !== name) : [...current, name],
+    );
+  }
+
+  function toggleNgo(name: string) {
+    setNgoFilter((current) =>
+      current.includes(name) ? current.filter((item) => item !== name) : [...current, name],
+    );
+  }
+
+  function toggleDraftRegion(name: string) {
+    setDraftRegionFilter((current) =>
+      current.includes(name) ? current.filter((item) => item !== name) : [...current, name],
+    );
+  }
+
+  function toggleDraftNgo(name: string) {
+    setDraftNgoFilter((current) =>
+      current.includes(name) ? current.filter((item) => item !== name) : [...current, name],
+    );
   }
 
   function updateDesktopPriceMin(value: number) {
@@ -540,6 +674,8 @@ export function KurbanComparisonClient({
       availablePriceBounds,
     );
     setSelectedPriceRange(nextRange);
+    setIsPriceSetByUser(true);
+    setUserPreferredPriceRange(nextRange);
   }
 
   function updateDesktopPriceMax(value: number) {
@@ -550,6 +686,8 @@ export function KurbanComparisonClient({
       availablePriceBounds,
     );
     setSelectedPriceRange(nextRange);
+    setIsPriceSetByUser(true);
+    setUserPreferredPriceRange(nextRange);
   }
 
   function updateDraftPriceMin(value: number) {
@@ -560,6 +698,8 @@ export function KurbanComparisonClient({
       availablePriceBounds,
     );
     setDraftPriceRange(nextRange);
+    setIsDraftPriceSetByUser(true);
+    setDraftUserPreferredPriceRange(nextRange);
   }
 
   function updateDraftPriceMax(value: number) {
@@ -570,6 +710,8 @@ export function KurbanComparisonClient({
       availablePriceBounds,
     );
     setDraftPriceRange(nextRange);
+    setIsDraftPriceSetByUser(true);
+    setDraftUserPreferredPriceRange(nextRange);
   }
 
   function handleCategoryChange(category: string) {
@@ -577,9 +719,30 @@ export function KurbanComparisonClient({
     setSelectedCategory(category);
   }
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, selectedCategory, sortBy, regionFilter, ngoFilter, selectedPriceRange]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  useEffect(() => {
+    resultsTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [currentPage]);
+
+  useEffect(() => {
+    if (!isPriceSetByUser) {
+      setSelectedPriceRange(null);
+      setDraftPriceRange(null);
+    }
+  }, [isPriceSetByUser, ngoFilter, regionFilter]);
+
   return (
     <>
-      <section className="rounded-2xl border border-divider-softLight bg-white/80 p-4 backdrop-blur-sm sm:p-6">
+      <section className="sticky top-16 z-30 rounded-2xl border border-divider-softLight bg-white/90 p-3 shadow-sm backdrop-blur-sm sm:p-6">
         <div className="relative md:px-10">
           <div
             ref={tabsScrollRef}
@@ -596,11 +759,10 @@ export function KurbanComparisonClient({
                     ref={(el) => {
                       categoryButtonRefs.current[tab] = el;
                     }}
-                    className={`-mb-px border-b-2 px-1 py-3 text-sm font-semibold transition-colors duration-200 ${
-                      isActive
-                        ? "border-brand-primary text-brand-primary"
-                        : "border-transparent text-text-secondary hover:text-text-primary"
-                    }`}
+                    className={`-mb-px border-b-2 px-1 py-3 text-sm font-semibold transition-colors duration-200 ${isActive
+                      ? "border-brand-primary text-brand-primary"
+                      : "border-transparent text-text-secondary hover:text-text-primary"
+                      }`}
                   >
                     {tab}
                   </button>
@@ -637,59 +799,21 @@ export function KurbanComparisonClient({
           ) : null}
         </div>
 
-        <div className="mt-4 hidden md:block">
-          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium text-text-secondary">
-                Ara
-              </span>
-              <input
-                type="text"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Kurum veya proje ara…"
-                className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm text-text-primary outline-none transition focus:border-brand-primary"
-              />
-            </label>
-
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium text-text-secondary">
-                Tutar
-              </span>
-              <PriceRangeControl
-                bounds={availablePriceBounds}
-                value={effectivePriceRange}
-                histogram={priceDistribution}
-                onMinChange={updateDesktopPriceMin}
-                onMaxChange={updateDesktopPriceMax}
-                floatingPanel
-              />
-            </label>
-
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium text-text-secondary">
-                Bölge
-              </span>
-              <select
-                value={regionFilter}
-                onChange={(event) => {
-                  setRegionFilter(event.target.value);
-                  event.currentTarget.blur();
-                }}
-                className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm text-text-primary outline-none transition focus:border-brand-primary"
-              >
-                <option value="all">Tümü</option>
-                {regions.map((region) => (
-                  <option key={region.id} value={region.name}>
-                    {region.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium text-text-secondary">
+        <div className="mt-1 lg:hidden">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={openMobileSheet}
+              className="inline-flex h-10 flex-1 items-center justify-center rounded-md border border-divider-softLight bg-surface-categoryLight px-4 text-sm font-semibold text-text-primary"
+            >
+              Filtrele
+            </button>
+            <label className="relative inline-flex h-10 flex-1 flex-col justify-center rounded-md border border-divider-softLight bg-surface-categoryLight px-3">
+              <span className="block text-[10px] font-semibold uppercase leading-none tracking-[0.08em] text-text-secondary">
                 Sırala
+              </span>
+              <span className="mt-0.5 block truncate pr-6 text-xs font-medium leading-none text-text-primary">
+                {selectedSortLabel}
               </span>
               <select
                 value={sortBy}
@@ -697,127 +821,336 @@ export function KurbanComparisonClient({
                   setSortBy(event.target.value as SortType);
                   event.currentTarget.blur();
                 }}
-                className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm text-text-primary outline-none transition focus:border-brand-primary"
+                className="absolute inset-0 h-full w-full cursor-pointer appearance-none rounded-md bg-transparent text-transparent outline-none"
+                aria-label="Sırala"
               >
                 <option value="price">En uygun tutar</option>
-                <option value="popular">En popüler</option>
+                <option value="popular">Varsayılan</option>
                 <option value="az">A–Z</option>
+                <option value="ngo">Kurumlara göre sırala</option>
               </select>
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary">
+                <ChevronIcon />
+              </span>
             </label>
           </div>
-        </div>
-
-        <div className="mt-4 md:hidden">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => openMobileSheet("filter")}
-              className="inline-flex min-h-10 flex-1 items-center justify-center rounded-md border border-divider-softLight bg-surface-categoryLight px-4 text-sm font-semibold text-text-primary"
-            >
-              Filtrele
-            </button>
-            <button
-              type="button"
-              onClick={() => openMobileSheet("sort")}
-              className="inline-flex min-h-10 flex-1 items-center justify-center rounded-md border border-divider-softLight bg-surface-categoryLight px-4 text-sm font-semibold text-text-primary"
-            >
-              Sırala
-            </button>
-          </div>
-          <p className="mt-2 text-xs text-text-secondary">
+          <p className="mt-1 text-xs text-text-secondary">
             {activeFilterSummary}
           </p>
         </div>
       </section>
 
-      <section className="mt-8 space-y-3 sm:space-y-4">
-        {filteredGroups.length === 0 ? (
-          <div className="rounded-lg border border-divider-softLight bg-surface-pageLight/70 px-4 py-8 text-center text-sm text-text-secondary">
-            Seçilen kategori için uygun bağış seçeneği bulunamadı.
-          </div>
-        ) : null}
-        {filteredGroups.map((group, index) => {
-          const isOpen = openOrganization === group.organization.slug;
-          const selectedCount = selectedCountByOrg[group.organization.slug] ?? 0;
-          const pricePreview = pricePreviewByOrg[group.organization.slug];
-          const isExpanded = expandedOrg[group.organization.slug] ?? false;
-          const visibleProjects = isExpanded ? group.projects : group.projects.slice(0, 2);
+      <section className="mt-0.5 lg:mt-1 lg:grid lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start lg:gap-5 xl:gap-6">
+        <aside className="hidden lg:sticky lg:top-40 lg:block lg:self-start">
+          <div className="max-h-[calc(100vh-11rem)] space-y-4 overflow-y-auto pr-1">
+            <section className="rounded-2xl border border-divider-softLight bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-emerald-700">
+                Keşfet
+              </p>
+              <p className="mt-1 text-sm text-text-secondary">
+                Sonuçları filtreleyin ve hızla karşılaştırın.
+              </p>
+              <div className="mt-4 space-y-4">
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-text-secondary">
+                    Ara
+                  </span>
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Kurum veya proje ara…"
+                    className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm text-text-primary outline-none transition focus:border-brand-primary"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-text-secondary">
+                    Tutar
+                  </span>
+                  <PriceRangeControl
+                    bounds={availablePriceBounds}
+                    value={effectivePriceRange}
+                    histogram={priceDistribution}
+                    onMinChange={updateDesktopPriceMin}
+                    onMaxChange={updateDesktopPriceMax}
+                    forceOpenOnDesktop
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-text-secondary">
+                    Sırala
+                  </span>
+                  <select
+                    value={sortBy}
+                    onChange={(event) => {
+                      setSortBy(event.target.value as SortType);
+                      event.currentTarget.blur();
+                    }}
+                    className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm text-text-primary outline-none transition focus:border-brand-primary"
+                  >
+                    <option value="price">En uygun tutar</option>
+                    <option value="popular">Varsayılan</option>
+                    <option value="az">A–Z</option>
+                    <option value="ngo">Kurumlara göre sırala</option>
+                  </select>
+                </label>
+              </div>
+            </section>
 
-          return (
-            <section
-              key={group.organization.slug}
-              className={`rounded-xl px-2 py-1 transition-colors ${isOpen ? "bg-surface-categoryLight/50" : "bg-transparent"
-                }`}
-            >
-              <button
-                type="button"
-                onClick={() =>
-                  setOpenOrganization((current) =>
-                    current === group.organization.slug ? "" : group.organization.slug,
-                  )
-                }
-                aria-expanded={isOpen}
-                aria-label={
-                  isOpen ? common.labels.collapseOrganization : common.labels.expandOrganization
-                }
-                className={`flex w-full cursor-pointer items-center justify-between gap-3 rounded-lg px-3 py-3 text-left transition-colors duration-200 ${isOpen
-                  ? "bg-surface-pageLight"
-                  : "hover:bg-surface-pageLight"
-                  }`}
-              >
-                <div>
-                  <h2 className="text-lg font-semibold text-text-primary sm:text-xl">
-                    {group.organization.name}
-                  </h2>
-                  <p className="mt-1 text-xs text-text-secondary sm:text-sm">
-                    {group.projects.length} {common.labels.optionCountSuffix}
-                    {pricePreview ? ` · ${pricePreview}` : ""}
-                    {selectedCount > 0 ? ` · ${selectedCount} seçildi` : ""}
-                  </p>
-                </div>
-                <span
-                  className={`inline-flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-transform duration-300 ${isOpen ? "rotate-180" : "rotate-0"
-                    }`}
-                >
-                  <ChevronIcon />
-                </span>
-              </button>
-
-              <div
-                className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-70"
-                  }`}
-              >
-                <div className="overflow-hidden">
-                  <div className="grid grid-cols-1 gap-6 pb-4 pt-2 md:grid-cols-2">
-                    {visibleProjects.map((project) => (
-                      <ProjectCard
-                        key={project.id}
-                        project={project}
-                        selected={selectedIds.includes(project.id)}
-                        onToggle={toggleProject}
-                        recommended={recommendedProjectIds[group.organization.slug] === project.id}
-                      />
-                    ))}
-                  </div>
-
-                  {group.projects.length > 2 ? (
-                    <button
-                      type="button"
-                      onClick={() => toggleExpand(group.organization.slug)}
-                      className="mb-3 inline-flex items-center text-sm font-semibold text-brand-primary transition hover:text-brand-secondary"
-                    >
-                      {isExpanded ? "Daha az göster" : "+ Daha fazla göster"}
-                    </button>
-                  ) : null}
+            <section className="rounded-2xl border border-divider-softLight bg-white p-4">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold text-[#1F2937]">Bölge Filtrele</h3>
+                <div className="flex items-center gap-1.5">
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+                    {visibleRegionListedCount} listelenen
+                  </span>
+                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                    {regionFilter.length} seçili
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsRegionCardOpen((current) => !current)}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition hover:bg-surface-categoryLight hover:text-text-primary"
+                    aria-expanded={isRegionCardOpen}
+                    aria-label={isRegionCardOpen ? "Bölge filtresini daralt" : "Bölge filtresini genişlet"}
+                  >
+                    <span className={`transition-transform duration-200 ${isRegionCardOpen ? "rotate-180" : ""}`}>
+                      <ChevronIcon />
+                    </span>
+                  </button>
                 </div>
               </div>
-
-              {index < filteredGroups.length - 1 ? (
-                <div className="mx-2 mt-2 border-b border-divider-softLight" />
+              {isRegionCardOpen ? (
+                <>
+                  <input
+                    type="text"
+                    value={regionSearch}
+                    onChange={(event) => setRegionSearch(event.target.value)}
+                    placeholder="Bölge ara..."
+                    className="mb-3 h-9 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm text-text-primary outline-none transition focus:border-brand-primary"
+                  />
+                  <div className="max-h-56 space-y-1 overflow-auto pr-1">
+                    {visibleRegionOptions
+                      .filter((region) => (dynamicRegionCounts.get(region.name) ?? 0) > 0)
+                      .map((region) => {
+                        const checked = regionFilter.includes(region.name);
+                        return (
+                          <label
+                            key={`region-item-${region.id}`}
+                            className="flex cursor-pointer items-center justify-between rounded-md px-2 py-1.5 transition hover:bg-slate-50"
+                          >
+                            <span className="flex items-center gap-2 text-sm text-text-primary">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleRegion(region.name)}
+                                className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                              />
+                              {region.name}
+                            </span>
+                            <span className="text-xs text-text-secondary">
+                              {dynamicRegionCounts.get(region.name) ?? 0}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    {!visibleRegionOptions.filter(
+                      (region) => (dynamicRegionCounts.get(region.name) ?? 0) > 0,
+                    ).length ? (
+                      <p className="px-2 py-1 text-xs text-text-secondary">Eşleşen bölge bulunamadı.</p>
+                    ) : null}
+                  </div>
+                  {regionFilter.length > 0 ? (
+                    <div className="mt-3 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setRegionFilter([])}
+                        className="text-xs font-medium text-text-secondary underline-offset-2 transition hover:text-text-primary hover:underline"
+                      >
+                        Temizle
+                      </button>
+                    </div>
+                  ) : null}
+                </>
               ) : null}
             </section>
-          );
-        })}
+
+            <section className="rounded-2xl border border-divider-softLight bg-white p-4">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold text-[#1F2937]">Kurum Filtrele</h3>
+                <div className="flex items-center gap-1.5">
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+                    {visibleNgoListedCount} listelenen
+                  </span>
+                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                    {ngoFilter.length} seçili
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsNgoCardOpen((current) => !current)}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition hover:bg-surface-categoryLight hover:text-text-primary"
+                    aria-expanded={isNgoCardOpen}
+                    aria-label={isNgoCardOpen ? "Kurum filtresini daralt" : "Kurum filtresini genişlet"}
+                  >
+                    <span className={`transition-transform duration-200 ${isNgoCardOpen ? "rotate-180" : ""}`}>
+                      <ChevronIcon />
+                    </span>
+                  </button>
+                </div>
+              </div>
+              {isNgoCardOpen ? (
+                <>
+                  <input
+                    type="text"
+                    value={ngoSearch}
+                    onChange={(event) => setNgoSearch(event.target.value)}
+                    placeholder="Kurum ara..."
+                    className="mb-3 h-9 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm text-text-primary outline-none transition focus:border-brand-primary"
+                  />
+                  <div className="max-h-56 space-y-1 overflow-auto pr-1">
+                    {visibleNgoOptions
+                      .filter((ngo) => (dynamicNgoCounts.get(ngo) ?? 0) > 0)
+                      .map((ngo) => {
+                        const checked = ngoFilter.includes(ngo);
+                        return (
+                          <label
+                            key={`ngo-item-${ngo}`}
+                            className="flex cursor-pointer items-center justify-between rounded-md px-2 py-1.5 transition hover:bg-slate-50"
+                          >
+                            <span className="flex items-center gap-2 text-sm text-text-primary">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleNgo(ngo)}
+                                className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                              />
+                              {ngo}
+                            </span>
+                            <span className="text-xs text-text-secondary">
+                              {dynamicNgoCounts.get(ngo) ?? 0}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    {!visibleNgoOptions.filter((ngo) => (dynamicNgoCounts.get(ngo) ?? 0) > 0).length ? (
+                      <p className="px-2 py-1 text-xs text-text-secondary">Eşleşen kurum bulunamadı.</p>
+                    ) : null}
+                  </div>
+                  {ngoFilter.length > 0 ? (
+                    <div className="mt-3 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setNgoFilter([])}
+                        className="text-xs font-medium text-text-secondary underline-offset-2 transition hover:text-text-primary hover:underline"
+                      >
+                        Temizle
+                      </button>
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
+            </section>
+          </div>
+        </aside>
+
+        <div className="space-y-3 sm:space-y-4">
+          <div ref={resultsTopRef} />
+          {filteredProjects.length === 0 ? (
+            <div className="rounded-lg border border-divider-softLight bg-surface-pageLight/70 px-4 py-8 text-center text-sm text-text-secondary">
+              Seçilen kategori için uygun bağış seçeneği bulunamadı.
+            </div>
+          ) : null}
+          <div className="rounded-xl border border-divider-softLight bg-white/70 px-4 py-3">
+            <p className="text-base font-semibold leading-6 text-text-primary sm:text-lg">
+              {resultHeader.title}
+            </p>
+            <p className="mt-1 text-xs leading-5 text-text-secondary sm:text-sm">
+              {resultHeader.subtitle}
+            </p>
+          </div>
+          {(regionFilter.length > 0 ||
+            ngoFilter.length > 0 ||
+            search.trim().length > 0 ||
+            normalizeText(selectedCategory) !== normalizeText(DEFAULT_CATEGORY)) ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {normalizeText(selectedCategory) !== normalizeText(DEFAULT_CATEGORY) ? (
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategory(DEFAULT_CATEGORY)}
+                  className="inline-flex items-center rounded-full border border-divider-softLight bg-white px-2.5 py-1 text-xs font-medium text-text-secondary transition hover:bg-surface-categoryLight hover:text-text-primary"
+                >
+                  ✓ {selectedCategory} ×
+                </button>
+              ) : null}
+              {regionFilter.map((region) => (
+                <button
+                  key={`active-region-${region}`}
+                  type="button"
+                  onClick={() => toggleRegion(region)}
+                  className="inline-flex items-center rounded-full border border-divider-softLight bg-white px-2.5 py-1 text-xs font-medium text-text-secondary transition hover:bg-surface-categoryLight hover:text-text-primary"
+                >
+                  ✓ {region} ×
+                </button>
+              ))}
+              {ngoFilter.map((ngo) => (
+                <button
+                  key={`active-ngo-${ngo}`}
+                  type="button"
+                  onClick={() => toggleNgo(ngo)}
+                  className="inline-flex items-center rounded-full border border-divider-softLight bg-white px-2.5 py-1 text-xs font-medium text-text-secondary transition hover:bg-surface-categoryLight hover:text-text-primary"
+                >
+                  ✓ {ngo} ×
+                </button>
+              ))}
+              {search.trim().length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="inline-flex items-center rounded-full border border-divider-softLight bg-white px-2.5 py-1 text-xs font-medium text-text-secondary transition hover:bg-surface-categoryLight hover:text-text-primary"
+                >
+                  ✓ "{search.trim()}" ×
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+          <div className="space-y-4">
+            {visibleProjects.map((project) => (
+              <ProjectCard
+                key={project.id}
+                project={project}
+                selected={selectedIds.includes(project.id)}
+                onToggle={toggleProject}
+              />
+            ))}
+          </div>
+          {filteredProjects.length > 0 ? (
+            <section className="mt-6 flex justify-center">
+              <div className="relative inline-flex items-center gap-2 rounded-full border border-divider-softLight bg-white px-2 py-1.5">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                  disabled={currentPage <= 1}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold text-text-secondary transition-colors duration-200 hover:bg-surface-categoryLight hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-35"
+                  aria-label="Önceki sayfa"
+                >
+                  &lt;
+                </button>
+                <span className="inline-flex min-w-24 items-center justify-center gap-1 rounded-full px-2 py-1 text-center text-sm font-medium text-text-secondary">
+                  {currentPage} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                  disabled={currentPage >= totalPages}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold text-text-secondary transition-colors duration-200 hover:bg-surface-categoryLight hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-35"
+                  aria-label="Sonraki sayfa"
+                >
+                  &gt;
+                </button>
+              </div>
+            </section>
+          ) : null}
+        </div>
       </section>
 
       {selectedProjects.length > 0 ? (
@@ -895,14 +1228,14 @@ export function KurbanComparisonClient({
       ) : null}
 
       {isMobileFilterOpen ? (
-        <div className="fixed inset-0 z-50 bg-black/45 md:hidden" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 z-50 bg-black/45 lg:hidden" role="dialog" aria-modal="true">
           <div
             className="absolute inset-x-0 bottom-0 rounded-t-2xl bg-surface-categoryLight p-4 shadow-2xl"
             style={{ maxHeight: "82vh", overflowY: "auto" }}
           >
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-base font-semibold text-text-primary">
-                {mobileSheetMode === "filter" ? "Filtrele" : "Sırala"}
+                Filtrele
               </h3>
               <button
                 type="button"
@@ -942,43 +1275,141 @@ export function KurbanComparisonClient({
               </label>
 
               <label className="block">
-                <span className="mb-1 block text-xs font-medium text-text-secondary">
-                  Bölge
-                </span>
-                <select
-                  value={draftRegionFilter}
-                  onChange={(event) => {
-                    setDraftRegionFilter(event.target.value);
-                    event.currentTarget.blur();
-                  }}
-                  className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm text-text-primary outline-none transition focus:border-brand-primary"
+                <button
+                  type="button"
+                  onClick={() => setIsMobileRegionOpen((current) => !current)}
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-left"
+                  aria-expanded={isMobileRegionOpen}
                 >
-                  <option value="all">Tümü</option>
-                  {regions.map((region) => (
-                    <option key={region.id} value={region.name}>
-                      {region.name}
-                    </option>
-                  ))}
-                </select>
+                  <span className="text-xs font-medium text-text-secondary">
+                    Bölge {draftRegionFilter.length > 0 ? `(${draftRegionFilter.length} seçili)` : ""}
+                  </span>
+                  <span className={`text-text-secondary transition-transform ${isMobileRegionOpen ? "rotate-180" : ""}`}>
+                    <ChevronIcon />
+                  </span>
+                </button>
+                {isMobileRegionOpen ? (
+                  <div className="mt-2">
+                    <input
+                      type="text"
+                      value={draftRegionSearch}
+                      onChange={(event) => setDraftRegionSearch(event.target.value)}
+                      placeholder="Bölge ara..."
+                      className="mb-2 h-9 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm text-text-primary outline-none transition focus:border-brand-primary"
+                    />
+                    <div className="max-h-40 space-y-1 overflow-auto rounded-md border border-divider-softLight bg-surface-pageLight p-2 pr-1">
+                      {visibleDraftRegionOptions
+                        .filter((region) => (dynamicRegionCounts.get(region.name) ?? 0) > 0)
+                        .map((region) => {
+                          const checked = draftRegionFilter.includes(region.name);
+                          return (
+                            <label
+                              key={region.id}
+                              className="flex cursor-pointer items-center justify-between rounded-md px-2 py-1.5 transition hover:bg-slate-50"
+                            >
+                              <span className="flex items-center gap-2 text-sm text-text-primary">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleDraftRegion(region.name)}
+                                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                />
+                                {region.name}
+                              </span>
+                              <span className="text-xs text-text-secondary">
+                                {dynamicRegionCounts.get(region.name) ?? 0}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      {!visibleDraftRegionOptions.filter(
+                        (region) => (dynamicRegionCounts.get(region.name) ?? 0) > 0,
+                      ).length ? (
+                        <p className="px-2 py-1 text-xs text-text-secondary">Eşleşen bölge bulunamadı.</p>
+                      ) : null}
+                    </div>
+                    {draftRegionFilter.length > 0 ? (
+                      <div className="mt-2 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setDraftRegionFilter([])}
+                          className="text-xs font-medium text-text-secondary underline-offset-2 transition hover:text-text-primary hover:underline"
+                        >
+                          Temizle
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
               </label>
 
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium text-text-secondary">
-                  Sırala
-                </span>
-                <select
-                  value={draftSortBy}
-                  onChange={(event) => {
-                    setDraftSortBy(event.target.value as SortType);
-                    event.currentTarget.blur();
-                  }}
-                  className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm text-text-primary outline-none transition focus:border-brand-primary"
+              <div className="block">
+                <button
+                  type="button"
+                  onClick={() => setIsMobileNgoOpen((current) => !current)}
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-left"
+                  aria-expanded={isMobileNgoOpen}
                 >
-                  <option value="price">En uygun tutar</option>
-                  <option value="popular">En popüler</option>
-                  <option value="az">A–Z</option>
-                </select>
-              </label>
+                  <span className="text-xs font-medium text-text-secondary">
+                    Kurum {draftNgoFilter.length > 0 ? `(${draftNgoFilter.length} seçili)` : ""}
+                  </span>
+                  <span className={`text-text-secondary transition-transform ${isMobileNgoOpen ? "rotate-180" : ""}`}>
+                    <ChevronIcon />
+                  </span>
+                </button>
+                {isMobileNgoOpen ? (
+                  <div className="mt-2">
+                    <input
+                      type="text"
+                      value={draftNgoSearch}
+                      onChange={(event) => setDraftNgoSearch(event.target.value)}
+                      placeholder="Kurum ara…"
+                      className="mb-2 h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm text-text-primary outline-none transition focus:border-brand-primary"
+                    />
+                    <div className="max-h-44 space-y-1 overflow-auto rounded-md border border-divider-softLight bg-surface-pageLight p-2 pr-1">
+                      {visibleDraftNgoOptions
+                        .filter((ngo) => (dynamicNgoCounts.get(ngo) ?? 0) > 0)
+                        .map((ngo) => {
+                          const checked = draftNgoFilter.includes(ngo);
+                          return (
+                            <label
+                              key={ngo}
+                              className="flex cursor-pointer items-center justify-between rounded-md px-2 py-1.5 transition hover:bg-slate-50"
+                            >
+                              <span className="flex items-center gap-2 text-sm text-text-primary">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleDraftNgo(ngo)}
+                                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                />
+                                {ngo}
+                              </span>
+                              <span className="text-xs text-text-secondary">
+                                {dynamicNgoCounts.get(ngo) ?? 0}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      {!visibleDraftNgoOptions.filter((ngo) => (dynamicNgoCounts.get(ngo) ?? 0) > 0).length ? (
+                        <p className="px-2 py-1 text-xs text-text-secondary">Eşleşen kurum bulunamadı.</p>
+                      ) : null}
+                    </div>
+                    {draftNgoFilter.length > 0 ? (
+                      <div className="mt-2 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setDraftNgoFilter([])}
+                          className="text-xs font-medium text-text-secondary underline-offset-2 transition hover:text-text-primary hover:underline"
+                        >
+                          Temizle
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+
             </div>
 
             <div className="mt-5 flex items-center gap-2">
@@ -1012,6 +1443,7 @@ function PriceRangeControl({
   onMaxChange,
   defaultOpen = false,
   floatingPanel = false,
+  forceOpenOnDesktop = false,
 }: {
   bounds: PriceBounds | null;
   value: PriceBounds | null;
@@ -1020,8 +1452,20 @@ function PriceRangeControl({
   onMaxChange: (value: number) => void;
   defaultOpen?: boolean;
   floatingPanel?: boolean;
+  forceOpenOnDesktop?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(min-width: 1024px)");
+    const update = () => setIsDesktop(mediaQuery.matches);
+    update();
+    mediaQuery.addEventListener("change", update);
+    return () => mediaQuery.removeEventListener("change", update);
+  }, []);
+
+  const panelOpen = (forceOpenOnDesktop && isDesktop) || isOpen;
 
   if (!bounds) {
     return (
@@ -1040,9 +1484,13 @@ function PriceRangeControl({
     <div className="relative">
       <button
         type="button"
-        onClick={() => setIsOpen((current) => !current)}
-        className="flex h-10 w-full items-center justify-between gap-3 rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-left shadow-[0_1px_3px_rgba(15,23,42,0.04)] transition hover:border-divider-softLight/90"
-        aria-expanded={isOpen}
+        onClick={() => {
+          if (forceOpenOnDesktop && isDesktop) return;
+          setIsOpen((current) => !current);
+        }}
+        className={`flex h-10 w-full items-center justify-between gap-3 rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-left shadow-[0_1px_3px_rgba(15,23,42,0.04)] transition hover:border-divider-softLight/90 ${forceOpenOnDesktop ? "lg:cursor-default" : ""
+          }`}
+        aria-expanded={panelOpen}
       >
         <div>
           <p className="text-sm font-semibold leading-tight text-text-primary">
@@ -1050,22 +1498,20 @@ function PriceRangeControl({
           </p>
         </div>
         <span
-          className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-transform duration-200 ${
-            isOpen ? "rotate-180" : ""
-          }`}
+          className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-transform duration-200 ${panelOpen ? "rotate-180" : ""
+            } ${forceOpenOnDesktop ? "lg:hidden" : ""}`}
           aria-hidden
         >
           <ChevronIcon />
         </span>
       </button>
 
-      {isOpen ? (
+      {panelOpen ? (
         <div
-          className={`${
-            floatingPanel
-              ? "absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 rounded-xl border border-divider-softLight bg-surface-pageLight p-3 shadow-[0_20px_50px_rgba(15,23,42,0.16)]"
-              : "mt-2 rounded-xl border border-divider-softLight bg-surface-pageLight p-3 shadow-[0_8px_24px_rgba(15,23,42,0.1)]"
-          }`}
+          className={`${floatingPanel
+            ? "absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 rounded-xl border border-divider-softLight bg-surface-pageLight p-3 shadow-[0_20px_50px_rgba(15,23,42,0.16)]"
+            : "mt-2 rounded-xl border border-divider-softLight bg-surface-pageLight p-3 shadow-[0_8px_24px_rgba(15,23,42,0.1)]"
+            }`}
         >
           <p className="mb-2 text-[11px] text-text-secondary">
             Aralık: {formatPrice(bounds.min)} - {formatPrice(bounds.max)}
@@ -1077,9 +1523,8 @@ function PriceRangeControl({
               return (
                 <span
                   key={bin.index}
-                  className={`block flex-1 rounded-sm transition-all duration-300 ${
-                    isActive ? "bg-brand-primary/40" : "bg-brand-primary/15"
-                  }`}
+                  className={`block flex-1 rounded-sm transition-all duration-300 ${isActive ? "bg-brand-primary/40" : "bg-brand-primary/15"
+                    }`}
                   style={{ height: `${height}%` }}
                 />
               );
