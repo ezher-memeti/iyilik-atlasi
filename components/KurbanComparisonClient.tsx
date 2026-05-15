@@ -45,7 +45,7 @@ function getProjectRegions(project: KurbanProjectWithOrganization) {
 }
 
 function getPositivePrice(project: KurbanProjectWithOrganization) {
-  return project.price > 0 ? project.price : null;
+  return project.price >= 0 ? project.price : null;
 }
 
 function clampRangeToBounds(range: PriceBounds, bounds: PriceBounds): PriceBounds {
@@ -393,8 +393,8 @@ export function KurbanComparisonClient({
       })
       .sort((a, b) => {
         if (sortBy === "price") {
-          const aPrice = a.price > 0 ? a.price : Number.MAX_SAFE_INTEGER;
-          const bPrice = b.price > 0 ? b.price : Number.MAX_SAFE_INTEGER;
+          const aPrice = a.price >= 0 ? a.price : Number.MAX_SAFE_INTEGER;
+          const bPrice = b.price >= 0 ? b.price : Number.MAX_SAFE_INTEGER;
           return aPrice - bPrice;
         }
 
