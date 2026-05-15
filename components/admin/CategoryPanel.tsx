@@ -27,6 +27,14 @@ const INITIAL_NAME = "";
 const INITIAL_DESCRIPTION = "";
 const CATEGORY_BUCKET = process.env.NEXT_PUBLIC_SUPABASE_CATEGORY_BUCKET ?? "category-images";
 
+function arrayMoveItem<T>(items: T[], from: number, to: number) {
+  if (from === to || from < 0 || to < 0 || from >= items.length || to >= items.length) return items;
+  const next = [...items];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  return next;
+}
+
 function normalizeForFileName(value: string) {
   return value
     .trim()
@@ -72,6 +80,8 @@ export function CategoryPanel() {
   const [isDeletingId, setIsDeletingId] = useState<number | null>(null);
   const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
   const [isSavingOrder, setIsSavingOrder] = useState(false);
+  const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
+  const [orderSearchQuery, setOrderSearchQuery] = useState("");
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [uploadStatus, setUploadStatus] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -95,6 +105,21 @@ export function CategoryPanel() {
     if (originalItems.length !== reorderedItems.length) return true;
     return reorderedItems.some((item, index) => item.id !== originalItems[index]?.id);
   }, [originalItems, reorderedItems]);
+  const filteredOrderItems = useMemo(() => {
+    const query = orderSearchQuery.trim().toLocaleLowerCase("tr-TR");
+    if (!query) return reorderedItems;
+    return reorderedItems.filter((item) =>
+      `${item.primary} ${item.secondary ?? ""}`.toLocaleLowerCase("tr-TR").includes(query),
+    );
+  }, [orderSearchQuery, reorderedItems]);
+  const globalOrderIndexById = useMemo(
+    () =>
+      reorderedItems.reduce<Record<number, number>>((acc, item, index) => {
+        acc[item.id] = index;
+        return acc;
+      }, {}),
+    [reorderedItems],
+  );
   const hasActiveFilter = searchQuery.trim().length > 0;
   const hasFormChanges = useMemo(
     () =>
@@ -115,14 +140,14 @@ export function CategoryPanel() {
     }, 2600);
   }
 
-  function mapToSortableItems(next: CategoryItem[]) {
+  function mapToSortableItems(next: CategoryItem[], withActions = true) {
     return next.map((category) => ({
       id: category.id,
       primary: category.name,
       secondary: category.description?.trim() || "Açıklama belirtilmedi.",
       meta: category.image_url ? "Görsel eklendi" : "Görsel yok",
       isHighlighted: editingCategoryId === category.id,
-      actions: (
+      actions: withActions ? (
         <>
           <button
             type="button"
@@ -139,7 +164,7 @@ export function CategoryPanel() {
             {isDeletingId === category.id ? "Siliniyor..." : "Sil"}
           </button>
         </>
-      ),
+      ) : undefined,
     }));
   }
 
@@ -148,9 +173,7 @@ export function CategoryPanel() {
       setIsLoading(true);
       setError(null);
       let query = supabase.from("category").select("id,name,description,image_url,position");
-      query = hasActiveFilter
-        ? query.order("id", { ascending: true })
-        : query.order("position", { ascending: true, nullsFirst: false });
+      query = query.order("id", { ascending: false });
       const { data, error: fetchError } = await query;
 
       if (fetchError) throw fetchError;
@@ -515,6 +538,49 @@ export function CategoryPanel() {
     setError(null);
   }
 
+  function applyFilteredOrder(nextFiltered: SortableListItem[]) {
+    const filteredIds = new Set(nextFiltered.map((item) => item.id));
+    const queue = [...nextFiltered];
+    setReorderedItems((current) =>
+      current.map((item) => (filteredIds.has(item.id) ? (queue.shift() ?? item) : item)),
+    );
+  }
+
+  function moveOrderItemToGlobalIndex(itemId: number, targetIndex: number) {
+    setReorderedItems((current) => {
+      const fromIndex = current.findIndex((item) => item.id === itemId);
+      if (fromIndex === -1) return current;
+      const clamped = Math.max(0, Math.min(current.length - 1, targetIndex));
+      return arrayMoveItem(current, fromIndex, clamped);
+    });
+  }
+
+  function closeOrderModal() {
+    setIsOrderModalOpen(false);
+    setOrderSearchQuery("");
+    void loadCategories();
+  }
+
+  async function openOrderModal() {
+    try {
+      setMessage(null);
+      setError(null);
+      const { data, error: fetchError } = await supabase
+        .from("category")
+        .select("id,name,description,image_url,position")
+        .order("position", { ascending: true, nullsFirst: false });
+      if (fetchError) throw fetchError;
+      const next = (data ?? []) as CategoryItem[];
+      const items = mapToSortableItems(next, false);
+      setOriginalItems(items);
+      setReorderedItems(items);
+      setIsOrderModalOpen(true);
+    } catch (orderError) {
+      console.error(orderError);
+      setError("Sıralama listesi yüklenemedi.");
+    }
+  }
+
   return (
     <section className="space-y-8 md:space-y-10">
       <div className="pointer-events-none fixed right-4 top-4 z-50 space-y-2">
@@ -699,11 +765,13 @@ export function CategoryPanel() {
       <section className="rounded-3xl border border-divider-softLight bg-white p-5 shadow-[0_12px_40px_rgba(16,24,40,0.08)] md:p-7">
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">Mevcut Kategoriler</h3>
-          {hasUnsavedOrder ? (
-            <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700">
-              Kaydedilmemiş sıralama değişikliği var
-            </span>
-          ) : null}
+          <button
+            type="button"
+            onClick={openOrderModal}
+            className="inline-flex h-10 items-center justify-center rounded-xl border border-divider-softLight bg-surface-pageLight px-3 text-sm font-semibold text-text-primary transition hover:bg-surface-categoryLight"
+          >
+            Sıralamayı Düzenle
+          </button>
         </div>
         <div className="mt-3">
           <label className="block">
@@ -727,33 +795,73 @@ export function CategoryPanel() {
             <div className="mt-4">
               <SortableOrderList
                 items={hasActiveFilter ? filteredReorderedItems : reorderedItems}
+                enableDrag={false}
+                showIndexBadge={false}
                 onReorder={(items) => {
                   if (hasActiveFilter) return;
                   setReorderedItems(items);
                 }}
               />
             </div>
-            <div className="sticky bottom-0 z-10 mt-4 -mx-5 flex gap-2 border-t border-divider-softLight bg-white px-5 py-3 sm:mx-0 sm:justify-end sm:border-t-0 sm:bg-transparent sm:px-0 sm:py-0">
+          </>
+        )}
+      </section>
+
+      {isOrderModalOpen ? (
+        <div className="fixed inset-0 z-50 bg-black/40 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
+          <div className="mx-auto flex h-full w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-divider-softLight bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-divider-softLight px-4 py-3">
+              <h3 className="text-sm font-semibold text-text-primary">Kategori Sıralamasını Düzenle</h3>
               <button
                 type="button"
-                onClick={handleCancelOrder}
-                disabled={!hasUnsavedOrder || isSavingOrder}
-                className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-divider-softLight bg-white px-4 text-sm font-semibold text-text-primary disabled:opacity-60 sm:h-10 sm:flex-none"
+                onClick={closeOrderModal}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md text-text-secondary transition hover:bg-surface-categoryLight hover:text-text-primary"
+              >
+                ×
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-auto p-4">
+              <div className="mb-3">
+                <input
+                  type="text"
+                  value={orderSearchQuery}
+                  onChange={(event) => setOrderSearchQuery(event.target.value)}
+                  placeholder="Kategori ara..."
+                  className="h-10 w-full rounded-xl border border-divider-softLight bg-surface-pageLight px-3 text-sm outline-none transition focus:border-brand-primary"
+                />
+              </div>
+              <SortableOrderList
+                items={filteredOrderItems}
+                showQuickMove
+                totalItemsCount={reorderedItems.length}
+                onMoveToGlobalIndex={moveOrderItemToGlobalIndex}
+                globalIndexById={globalOrderIndexById}
+                onReorder={applyFilteredOrder}
+              />
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-divider-softLight px-4 py-3">
+              <button
+                type="button"
+                onClick={closeOrderModal}
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-divider-softLight bg-surface-pageLight px-4 text-sm font-semibold text-text-primary"
               >
                 İptal
               </button>
               <button
                 type="button"
-                onClick={handleSaveOrder}
-                disabled={!hasUnsavedOrder || isSavingOrder || hasActiveFilter}
-                className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-brand-primary px-4 text-sm font-semibold text-white disabled:opacity-60 sm:h-10 sm:flex-none"
+                onClick={async () => {
+                  await handleSaveOrder();
+                  setIsOrderModalOpen(false);
+                }}
+                disabled={!hasUnsavedOrder || isSavingOrder}
+                className="inline-flex h-10 items-center justify-center rounded-xl bg-brand-primary px-4 text-sm font-semibold text-white disabled:opacity-60"
               >
-                {isSavingOrder ? "Sıra kaydediliyor..." : "Sıralamayı Kaydet"}
+                {isSavingOrder ? "Kaydediliyor..." : "Sıralamayı Kaydet"}
               </button>
             </div>
-          </>
-        )}
-      </section>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

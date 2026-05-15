@@ -16,7 +16,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 export type SortableListItem = {
   id: number;
@@ -31,16 +31,44 @@ export type SortableListItem = {
 type SortableOrderListProps = {
   items: SortableListItem[];
   onReorder: (items: SortableListItem[]) => void;
+  enableDrag?: boolean;
+  showQuickMove?: boolean;
+  totalItemsCount?: number;
+  onMoveToGlobalIndex?: (itemId: number, targetIndex: number) => void;
+  globalIndexById?: Record<number, number>;
+  showIndexBadge?: boolean;
 };
 
 function SortableRow({
   item,
+  index,
+  total,
+  showQuickMove,
+  onMoveTop,
+  onMoveBottom,
+  onMoveTo,
+  onMoveToGlobalIndex,
+  totalItemsCount,
+  globalIndexById,
+  showIndexBadge,
+  enableDrag,
   canMoveUp,
   canMoveDown,
   onMoveUp,
   onMoveDown,
 }: {
   item: SortableListItem;
+  index: number;
+  total: number;
+  showQuickMove: boolean;
+  onMoveTop: () => void;
+  onMoveBottom: () => void;
+  onMoveTo: (targetIndex: number) => void;
+  onMoveToGlobalIndex?: (itemId: number, targetIndex: number) => void;
+  totalItemsCount?: number;
+  globalIndexById?: Record<number, number>;
+  showIndexBadge: boolean;
+  enableDrag: boolean;
   canMoveUp: boolean;
   canMoveDown: boolean;
   onMoveUp: () => void;
@@ -50,11 +78,25 @@ function SortableRow({
     id: item.id,
   });
   const [showDetails, setShowDetails] = useState(false);
+  const [targetPosition, setTargetPosition] = useState(String(index + 1));
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
   };
+
+  const globalIndex =
+    globalIndexById && typeof globalIndexById[item.id] === "number"
+      ? globalIndexById[item.id]
+      : index;
+  const displayPosition = globalIndex + 1;
+  const maxCount = typeof totalItemsCount === "number" ? totalItemsCount : total;
+  const isAtGlobalTop = globalIndex <= 0;
+  const isAtGlobalBottom = globalIndex >= maxCount - 1;
+
+  useEffect(() => {
+    setTargetPosition(String(displayPosition));
+  }, [displayPosition]);
 
   return (
     <li
@@ -67,15 +109,23 @@ function SortableRow({
       }`}
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-        <button
-          type="button"
-          className="mt-0.5 h-11 w-11 shrink-0 touch-none cursor-grab rounded-md border border-divider-softLight text-base text-text-secondary active:cursor-grabbing sm:h-10 sm:w-10"
-          aria-label="Sürükleyerek sırala"
-          {...attributes}
-          {...listeners}
-        >
-          ☰
-        </button>
+        {enableDrag ? (
+          <button
+            type="button"
+            className="mt-0.5 h-11 w-11 shrink-0 touch-none cursor-grab rounded-md border border-divider-softLight text-base text-text-secondary active:cursor-grabbing sm:h-10 sm:w-10"
+            aria-label="Sürükleyerek sırala"
+            {...attributes}
+            {...listeners}
+          >
+            ☰
+          </button>
+        ) : showIndexBadge ? (
+          <span className="mt-0.5 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-divider-softLight text-xs font-semibold text-text-secondary sm:h-10 sm:w-10">
+            {displayPosition}
+          </span>
+        ) : (
+          <span className="sr-only">{displayPosition}</span>
+        )}
 
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-text-primary">
@@ -139,11 +189,78 @@ function SortableRow({
           Aşağı Taşı
         </button>
       </div>
+
+      {showQuickMove ? (
+        <div className="mt-3 grid gap-2 sm:grid-cols-[auto_auto_minmax(0,1fr)_auto]">
+          <button
+            type="button"
+            onClick={() => {
+              if (onMoveToGlobalIndex) {
+                onMoveToGlobalIndex(item.id, 0);
+                return;
+              }
+              onMoveTop();
+            }}
+            disabled={isAtGlobalTop}
+            className="inline-flex h-9 items-center justify-center rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-xs font-semibold text-text-primary disabled:opacity-50"
+          >
+            En üste
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (onMoveToGlobalIndex && typeof totalItemsCount === "number") {
+                onMoveToGlobalIndex(item.id, totalItemsCount - 1);
+                return;
+              }
+              onMoveBottom();
+            }}
+            disabled={isAtGlobalBottom}
+            className="inline-flex h-9 items-center justify-center rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-xs font-semibold text-text-primary disabled:opacity-50"
+          >
+            En alta
+          </button>
+          <input
+            type="number"
+            min={1}
+            max={maxCount}
+            value={targetPosition}
+            onChange={(event) => setTargetPosition(event.target.value)}
+            className="h-9 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-2 text-xs outline-none focus:border-brand-primary"
+            aria-label="Pozisyon numarası"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              const next = Number(targetPosition);
+              if (Number.isNaN(next)) return;
+              const clamped = Math.max(1, Math.min(maxCount, next));
+              if (onMoveToGlobalIndex) {
+                onMoveToGlobalIndex(item.id, clamped - 1);
+                return;
+              }
+              onMoveTo(clamped - 1);
+            }}
+            className="inline-flex h-9 items-center justify-center rounded-md bg-brand-primary px-3 text-xs font-semibold text-white"
+          >
+            Uygula
+          </button>
+        </div>
+      ) : null}
     </li>
   );
 }
 
-export function SortableOrderList({ items, onReorder }: SortableOrderListProps) {
+export function SortableOrderList({
+  items,
+  onReorder,
+  enableDrag = true,
+  showQuickMove = false,
+  totalItemsCount,
+  onMoveToGlobalIndex,
+  globalIndexById,
+  showIndexBadge = true,
+}: SortableOrderListProps) {
   const sensors = useSensors(
     useSensor(MouseSensor, {
       activationConstraint: {
@@ -177,21 +294,38 @@ export function SortableOrderList({ items, onReorder }: SortableOrderListProps) 
     onReorder(arrayMove(items, oldIndex, newIndex));
   }
 
+  const list = (
+    <ul className="space-y-3">
+      {items.map((item, index) => (
+        <SortableRow
+          key={item.id}
+          item={item}
+          index={index}
+          total={items.length}
+          showQuickMove={showQuickMove}
+          onMoveTop={() => moveItem(index, 0)}
+          onMoveBottom={() => moveItem(index, items.length - 1)}
+          onMoveTo={(target) => moveItem(index, target)}
+          onMoveToGlobalIndex={onMoveToGlobalIndex}
+          totalItemsCount={totalItemsCount}
+          globalIndexById={globalIndexById}
+          showIndexBadge={showIndexBadge}
+          enableDrag={enableDrag}
+          canMoveUp={index > 0}
+          canMoveDown={index < items.length - 1}
+          onMoveUp={() => moveItem(index, index - 1)}
+          onMoveDown={() => moveItem(index, index + 1)}
+        />
+      ))}
+    </ul>
+  );
+
+  if (!enableDrag) return list;
+
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={items.map((item) => item.id)} strategy={verticalListSortingStrategy}>
-        <ul className="space-y-3">
-          {items.map((item, index) => (
-            <SortableRow
-              key={item.id}
-              item={item}
-              canMoveUp={index > 0}
-              canMoveDown={index < items.length - 1}
-              onMoveUp={() => moveItem(index, index - 1)}
-              onMoveDown={() => moveItem(index, index + 1)}
-            />
-          ))}
-        </ul>
+        {list}
       </SortableContext>
     </DndContext>
   );

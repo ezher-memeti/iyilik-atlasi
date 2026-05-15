@@ -54,6 +54,52 @@ const INITIAL_FORM = {
   selectedCategoryIds: [] as number[],
 };
 
+function arrayMoveItem<T>(items: T[], from: number, to: number) {
+  if (from === to || from < 0 || to < 0 || from >= items.length || to >= items.length) return items;
+  const next = [...items];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  return next;
+}
+
+function mapProjectToSortableItem(
+  project: ProjectListItem,
+  editingProjectId: number | null,
+  isDeletingId: number | null,
+  handleEdit: (project: ProjectListItem) => void,
+  handleDelete: (projectId: number) => void,
+  withActions = true,
+): SortableListItem {
+  return {
+    id: project.id,
+    primary: project.title,
+    meta: `Kurum: ${project.ngo?.name ?? "Bilinmiyor"}`,
+    secondary: `Kurum: ${project.ngo?.name ?? "Bilinmiyor"} · Bölge: ${
+      project.regions.length ? project.regions.map((region) => region.name).join(", ") : "Belirtilmedi"
+    } · Tutar: ${project.price ?? 0}`,
+    link: project.donation_url,
+    isHighlighted: editingProjectId === project.id,
+    actions: withActions ? (
+      <>
+        <button
+          type="button"
+          onClick={() => handleEdit(project)}
+          className="inline-flex h-11 items-center justify-center sm:h-9 rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm font-semibold text-text-primary transition hover:bg-surface-categoryLight"
+        >
+          Düzenle
+        </button>
+        <button
+          type="button"
+          onClick={() => handleDelete(project.id)}
+          className="inline-flex h-11 items-center justify-center sm:h-9 rounded-md border border-red-300 bg-red-50 px-3 text-sm font-semibold text-red-700 transition hover:bg-red-100"
+        >
+          {isDeletingId === project.id ? "Siliniyor..." : "Sil"}
+        </button>
+      </>
+    ) : undefined,
+  };
+}
+
 export function ProjectPanel() {
   const supabase = createClient();
   const formSectionRef = useRef<HTMLElement | null>(null);
@@ -72,6 +118,10 @@ export function ProjectPanel() {
   const [isSaving, setIsSaving] = useState(false);
   const [isDeletingId, setIsDeletingId] = useState<number | null>(null);
   const [isSavingOrder, setIsSavingOrder] = useState(false);
+  const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
+  const [orderSearchQuery, setOrderSearchQuery] = useState("");
+  const [orderNgoFilter, setOrderNgoFilter] = useState("all");
+  const [orderCategoryFilter, setOrderCategoryFilter] = useState("all");
 
   const [title, setTitle] = useState(INITIAL_FORM.title);
   const [price, setPrice] = useState(INITIAL_FORM.price);
@@ -107,6 +157,29 @@ export function ProjectPanel() {
     if (originalItems.length !== reorderedItems.length) return true;
     return reorderedItems.some((item, index) => item.id !== originalItems[index]?.id);
   }, [originalItems, reorderedItems]);
+  const filteredOrderItems = useMemo(() => {
+    const query = orderSearchQuery.trim().toLocaleLowerCase("tr-TR");
+    return reorderedItems.filter((item) => {
+      const matchesQuery =
+        !query ||
+        `${item.primary} ${item.secondary ?? ""}`.toLocaleLowerCase("tr-TR").includes(query);
+      const matchesNgo =
+        orderNgoFilter === "all" ||
+        (item.meta ?? "").toLocaleLowerCase("tr-TR").includes(orderNgoFilter.toLocaleLowerCase("tr-TR"));
+      const matchesCategory =
+        orderCategoryFilter === "all" ||
+        (item.secondary ?? "").toLocaleLowerCase("tr-TR").includes(orderCategoryFilter.toLocaleLowerCase("tr-TR"));
+      return matchesQuery && matchesNgo && matchesCategory;
+    });
+  }, [orderCategoryFilter, orderNgoFilter, orderSearchQuery, reorderedItems]);
+  const globalOrderIndexById = useMemo(
+    () =>
+      reorderedItems.reduce<Record<number, number>>((acc, item, index) => {
+        acc[item.id] = index;
+        return acc;
+      }, {}),
+    [reorderedItems],
+  );
   const hasActiveFilter =
     searchQuery.trim().length > 0 ||
     ngoFilter !== "all" ||
@@ -170,11 +243,11 @@ export function ProjectPanel() {
           ? supabase
               .from("project")
               .select("id,title,price,donation_url,ngo_id,position,ngo:ngo_id(name),project_bolge(bolge:bolge_id(id,name)),project_categories(category:category_id(id,name))")
-              .order("id", { ascending: true })
+              .order("id", { ascending: false })
           : supabase
               .from("project")
               .select("id,title,price,donation_url,ngo_id,position,ngo:ngo_id(name),project_bolge(bolge:bolge_id(id,name)),project_categories(category:category_id(id,name))")
-              .order("position", { ascending: true, nullsFirst: false })),
+              .order("id", { ascending: false })),
       ]);
 
       if (ngoRes.error) throw ngoRes.error;
@@ -218,36 +291,16 @@ export function ProjectPanel() {
       }));
       setProjects(mappedProjects);
 
-      const listItems = mappedProjects.map((project) => ({
-        id: project.id,
-        primary: project.title,
-        meta: `Kurum: ${project.ngo?.name ?? "Bilinmiyor"}`,
-        secondary: `Kurum: ${project.ngo?.name ?? "Bilinmiyor"} · Bölge: ${
-          project.regions.length
-            ? project.regions.map((region) => region.name).join(", ")
-            : "Belirtilmedi"
-        } · Tutar: ${project.price ?? 0}`,
-        link: project.donation_url,
-        isHighlighted: editingProjectId === project.id,
-        actions: (
-          <>
-            <button
-              type="button"
-              onClick={() => handleEdit(project)}
-              className="inline-flex h-11 items-center justify-center sm:h-9 rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm font-semibold text-text-primary transition hover:bg-surface-categoryLight"
-            >
-              Düzenle
-            </button>
-            <button
-              type="button"
-              onClick={() => handleDelete(project.id)}
-              className="inline-flex h-11 items-center justify-center sm:h-9 rounded-md border border-red-300 bg-red-50 px-3 text-sm font-semibold text-red-700 transition hover:bg-red-100"
-            >
-              {isDeletingId === project.id ? "Siliniyor..." : "Sil"}
-            </button>
-          </>
+      const listItems = mappedProjects.map((project) =>
+        mapProjectToSortableItem(
+          project,
+          editingProjectId,
+          isDeletingId,
+          handleEdit,
+          handleDelete,
+          true,
         ),
-      }));
+      );
       setOriginalItems(listItems);
       setReorderedItems(listItems);
     } catch (loadError) {
@@ -582,6 +635,91 @@ export function ProjectPanel() {
     setError(null);
   }
 
+  function applyFilteredOrder(nextFiltered: SortableListItem[]) {
+    const filteredIds = new Set(nextFiltered.map((item) => item.id));
+    const queue = [...nextFiltered];
+    setReorderedItems((current) =>
+      current.map((item) => (filteredIds.has(item.id) ? (queue.shift() ?? item) : item)),
+    );
+  }
+
+  function moveOrderItemToGlobalIndex(itemId: number, targetIndex: number) {
+    setReorderedItems((current) => {
+      const fromIndex = current.findIndex((item) => item.id === itemId);
+      if (fromIndex === -1) return current;
+      const clamped = Math.max(0, Math.min(current.length - 1, targetIndex));
+      return arrayMoveItem(current, fromIndex, clamped);
+    });
+  }
+
+  function closeOrderModal() {
+    setIsOrderModalOpen(false);
+    setOrderSearchQuery("");
+    setOrderNgoFilter("all");
+    setOrderCategoryFilter("all");
+    void loadData();
+  }
+
+  async function openOrderModal() {
+    try {
+      setMessage(null);
+      setError(null);
+      const { data, error: fetchError } = await supabase
+        .from("project")
+        .select("id,title,price,donation_url,ngo_id,position,ngo:ngo_id(name),project_bolge(bolge:bolge_id(id,name)),project_categories(category:category_id(id,name))")
+        .order("position", { ascending: true, nullsFirst: false });
+      if (fetchError) throw fetchError;
+
+      const mappedProjects = ((data ?? []) as ProjectRow[]).map((row) => ({
+        id: row.id,
+        title: row.title,
+        price: row.price,
+        donation_url: row.donation_url,
+        ngo_id: row.ngo_id,
+        regions: Array.from(
+          new Map(
+            (row.project_bolge ?? [])
+              .map((item) => {
+                const bolge = Array.isArray(item.bolge) ? item.bolge[0] ?? null : item.bolge;
+                return bolge ? [bolge.id, bolge] : null;
+              })
+              .filter((item): item is [number, { id: number; name: string }] => Boolean(item)),
+          ).values(),
+        ),
+        categoryIds: Array.from(
+          new Set(
+            (row.project_categories ?? [])
+              .map((item) => {
+                const category = Array.isArray(item.category) ? item.category[0] ?? null : item.category;
+                return category?.id ?? null;
+              })
+              .filter((id): id is number => typeof id === "number"),
+          ),
+        ),
+        position: row.position,
+        ngo: Array.isArray(row.ngo) ? row.ngo[0] ?? null : row.ngo,
+      }));
+
+      const listItems = mappedProjects.map((project) =>
+        mapProjectToSortableItem(
+          project,
+          editingProjectId,
+          isDeletingId,
+          handleEdit,
+          handleDelete,
+          false,
+        ),
+      );
+
+      setOriginalItems(listItems);
+      setReorderedItems(listItems);
+      setIsOrderModalOpen(true);
+    } catch (orderError) {
+      console.error(orderError);
+      setError("Sıralama listesi yüklenemedi.");
+    }
+  }
+
   return (
     <section className="space-y-6 md:space-y-8">
       <section
@@ -755,11 +893,13 @@ export function ProjectPanel() {
           <h3 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
             Mevcut Projeler
           </h3>
-          {hasUnsavedOrder ? (
-            <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700">
-              Kaydedilmemiş sıralama değişikliği var
-            </span>
-          ) : null}
+          <button
+            type="button"
+            onClick={openOrderModal}
+            className="inline-flex h-10 items-center justify-center rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm font-semibold text-text-primary transition hover:bg-surface-categoryLight"
+          >
+            Sıralamayı Düzenle
+          </button>
         </div>
         <div className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
           <label className="block">
@@ -828,33 +968,97 @@ export function ProjectPanel() {
             <div className="mt-4">
               <SortableOrderList
                 items={hasActiveFilter ? filteredReorderedItems : reorderedItems}
+                enableDrag={false}
+                showIndexBadge={false}
                 onReorder={(items) => {
                   if (hasActiveFilter) return;
                   setReorderedItems(items);
                 }}
               />
             </div>
-            <div className="sticky bottom-0 z-10 mt-4 -mx-4 flex gap-2 border-t border-divider-softLight bg-surface-pageLight px-4 py-3 sm:mx-0 sm:justify-end sm:border-t-0 sm:bg-transparent sm:px-0 sm:py-0">
+          </>
+        )}
+      </section>
+
+      {isOrderModalOpen ? (
+        <div className="fixed inset-0 z-50 bg-black/40 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
+          <div className="mx-auto flex h-full w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-divider-softLight bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-divider-softLight px-4 py-3">
+              <h3 className="text-sm font-semibold text-text-primary">Proje Sıralamasını Düzenle</h3>
               <button
                 type="button"
-                onClick={handleCancelOrder}
-                disabled={!hasUnsavedOrder || isSavingOrder}
-                className="inline-flex h-11 flex-1 items-center justify-center rounded-md border border-divider-softLight bg-surface-pageLight px-4 text-sm font-semibold text-text-primary disabled:opacity-60 sm:h-10 sm:flex-none"
+                onClick={closeOrderModal}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md text-text-secondary transition hover:bg-surface-categoryLight hover:text-text-primary"
+              >
+                ×
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-auto p-4">
+              <div className="mb-3 grid gap-2 md:grid-cols-3">
+                <input
+                  type="text"
+                  value={orderSearchQuery}
+                  onChange={(event) => setOrderSearchQuery(event.target.value)}
+                  placeholder="Proje ara..."
+                  className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm outline-none focus:border-brand-primary"
+                />
+                <select
+                  value={orderNgoFilter}
+                  onChange={(event) => setOrderNgoFilter(event.target.value)}
+                  className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm outline-none focus:border-brand-primary"
+                >
+                  <option value="all">Tüm kurumlar</option>
+                  {ngos.map((ngo) => (
+                    <option key={ngo.id} value={ngo.name}>
+                      {ngo.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={orderCategoryFilter}
+                  onChange={(event) => setOrderCategoryFilter(event.target.value)}
+                  className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm outline-none focus:border-brand-primary"
+                >
+                  <option value="all">Tüm kategoriler</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.name}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <SortableOrderList
+                items={filteredOrderItems}
+                showQuickMove
+                totalItemsCount={reorderedItems.length}
+                onMoveToGlobalIndex={moveOrderItemToGlobalIndex}
+                globalIndexById={globalOrderIndexById}
+                onReorder={applyFilteredOrder}
+              />
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-divider-softLight px-4 py-3">
+              <button
+                type="button"
+                onClick={closeOrderModal}
+                className="inline-flex h-10 items-center justify-center rounded-md border border-divider-softLight bg-surface-pageLight px-4 text-sm font-semibold text-text-primary"
               >
                 İptal
               </button>
               <button
                 type="button"
-                onClick={handleSaveOrder}
-                disabled={!hasUnsavedOrder || isSavingOrder || hasActiveFilter}
-                className="inline-flex h-11 flex-1 items-center justify-center rounded-md bg-brand-primary px-4 text-sm font-semibold text-white disabled:opacity-60 sm:h-10 sm:flex-none"
+                onClick={async () => {
+                  await handleSaveOrder();
+                  setIsOrderModalOpen(false);
+                }}
+                disabled={!hasUnsavedOrder || isSavingOrder}
+                className="inline-flex h-10 items-center justify-center rounded-md bg-brand-primary px-4 text-sm font-semibold text-white disabled:opacity-60"
               >
-                {isSavingOrder ? "Sıra kaydediliyor..." : "Sıralamayı Kaydet"}
+                {isSavingOrder ? "Kaydediliyor..." : "Sıralamayı Kaydet"}
               </button>
             </div>
-          </>
-        )}
-      </section>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
