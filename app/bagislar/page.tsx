@@ -26,11 +26,12 @@ type DonationsPageProps = {
     kategori?: string;
     bolge?: string;
     ara?: string;
+    proje?: string;
   }>;
 };
 
 export default async function DonationsPage({ searchParams }: DonationsPageProps) {
-  const { kategori, bolge, ara } = await searchParams;
+  const { kategori, bolge, ara, proje } = await searchParams;
   const projects = await getAllProjects();
   const categories = await getCategories();
   const regions = await getRegions();
@@ -63,6 +64,7 @@ export default async function DonationsPage({ searchParams }: DonationsPageProps
         initialCategory={kategori}
         initialRegion={bolge}
         initialSearch={ara}
+        initialProjectId={proje}
       />
     </main>
   );
