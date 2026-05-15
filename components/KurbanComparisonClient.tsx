@@ -742,7 +742,7 @@ export function KurbanComparisonClient({
 
   return (
     <>
-      <section className="sticky top-16 z-30 rounded-2xl border border-divider-softLight bg-white/90 p-4 shadow-sm backdrop-blur-sm sm:p-6">
+      <section className="sticky top-16 z-30 rounded-2xl border border-divider-softLight bg-white/90 p-3 shadow-sm backdrop-blur-sm sm:p-6">
         <div className="relative md:px-10">
           <div
             ref={tabsScrollRef}
@@ -760,8 +760,8 @@ export function KurbanComparisonClient({
                       categoryButtonRefs.current[tab] = el;
                     }}
                     className={`-mb-px border-b-2 px-1 py-3 text-sm font-semibold transition-colors duration-200 ${isActive
-                        ? "border-brand-primary text-brand-primary"
-                        : "border-transparent text-text-secondary hover:text-text-primary"
+                      ? "border-brand-primary text-brand-primary"
+                      : "border-transparent text-text-secondary hover:text-text-primary"
                       }`}
                   >
                     {tab}
@@ -799,7 +799,7 @@ export function KurbanComparisonClient({
           ) : null}
         </div>
 
-        <div className="mt-4 lg:hidden">
+        <div className="mt-1 lg:hidden">
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -834,13 +834,13 @@ export function KurbanComparisonClient({
               </span>
             </label>
           </div>
-          <p className="mt-2 text-xs text-text-secondary">
+          <p className="mt-1 text-xs text-text-secondary">
             {activeFilterSummary}
           </p>
         </div>
       </section>
 
-      <section className="mt-8 lg:grid lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start lg:gap-8">
+      <section className="mt-0.5 lg:mt-1 lg:grid lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start lg:gap-5 xl:gap-6">
         <aside className="hidden lg:sticky lg:top-40 lg:block lg:self-start">
           <div className="max-h-[calc(100vh-11rem)] space-y-4 overflow-y-auto pr-1">
             <section className="rounded-2xl border border-divider-softLight bg-white p-4">
@@ -1509,8 +1509,8 @@ function PriceRangeControl({
       {panelOpen ? (
         <div
           className={`${floatingPanel
-              ? "absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 rounded-xl border border-divider-softLight bg-surface-pageLight p-3 shadow-[0_20px_50px_rgba(15,23,42,0.16)]"
-              : "mt-2 rounded-xl border border-divider-softLight bg-surface-pageLight p-3 shadow-[0_8px_24px_rgba(15,23,42,0.1)]"
+            ? "absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 rounded-xl border border-divider-softLight bg-surface-pageLight p-3 shadow-[0_20px_50px_rgba(15,23,42,0.16)]"
+            : "mt-2 rounded-xl border border-divider-softLight bg-surface-pageLight p-3 shadow-[0_8px_24px_rgba(15,23,42,0.1)]"
             }`}
         >
           <p className="mb-2 text-[11px] text-text-secondary">
