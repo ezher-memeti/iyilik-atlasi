@@ -1,4 +1,6 @@
 import common from "@/content/common.json";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import { SafeLink } from "@/components/SafeLink";
 import { formatPrice, type KurbanProjectWithOrganization } from "@/lib/donationModels";
 
@@ -15,6 +17,12 @@ export function ProjectCard({
   onToggle,
   recommended = false,
 }: ProjectCardProps) {
+  const [logoLoadFailed, setLogoLoadFailed] = useState(false);
+
+  useEffect(() => {
+    setLogoLoadFailed(false);
+  }, [project.organization.logoUrl, project.organization.slug]);
+
   const ngoInitials = project.organization.name
     .split(" ")
     .map((part) => part.trim())
@@ -25,7 +33,7 @@ export function ProjectCard({
 
   return (
     <article
-      className={`rounded-2xl border p-3.5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md sm:p-4 ${
+      className={`overflow-hidden rounded-2xl border p-3.5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md sm:p-4 ${
         selected
           ? "border-emerald-500 bg-emerald-500/8 ring-1 ring-emerald-500/35"
           : "border-slate-200/80 bg-white hover:bg-slate-50"
@@ -33,26 +41,38 @@ export function ProjectCard({
     >
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4">
         <div className="min-w-0">
-          <div className="flex min-w-0 items-center gap-2">
-            {project.organization.logoUrl ? (
+          <Link
+            href={`/organizations/${project.organization.slug}`}
+            className="group inline-flex min-w-0 items-center gap-2 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500/35 focus:ring-offset-2"
+            title={`${project.organization.name} profilini görüntüle`}
+            aria-label={`${project.organization.name} profiline git`}
+          >
+            {project.organization.logoUrl && !logoLoadFailed ? (
               <img
                 src={project.organization.logoUrl}
                 alt={`${project.organization.name} logosu`}
-                className="h-7 w-7 shrink-0 rounded-full border border-slate-200 bg-white object-contain p-0.5 sm:h-8 sm:w-8"
+                className="h-7 w-7 shrink-0 rounded-full border border-slate-200 bg-white object-contain p-0.5 transition group-hover:border-emerald-300 group-hover:shadow-sm sm:h-8 sm:w-8"
                 loading="lazy"
+                onError={() => setLogoLoadFailed(true)}
               />
             ) : (
               <span
                 aria-hidden="true"
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-emerald-50 text-[10px] font-semibold text-emerald-800 sm:h-8 sm:w-8"
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-emerald-50 text-[10px] font-semibold text-emerald-800 transition group-hover:border-emerald-300 group-hover:bg-emerald-100 sm:h-8 sm:w-8"
               >
                 {ngoInitials || "NG"}
               </span>
             )}
-            <p className="truncate text-[11px] font-semibold uppercase tracking-wide text-emerald-700/90 sm:text-xs">
-              {project.organization.name}
-            </p>
-          </div>
+            <div className="min-w-0">
+              <p className="line-clamp-2 break-words text-[11px] font-semibold uppercase leading-4 tracking-wide text-emerald-700/90 underline-offset-2 transition group-hover:text-emerald-800 group-hover:underline sm:text-xs">
+                {project.organization.name}
+              </p>
+              <p className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700/70 transition group-hover:text-emerald-800">
+                Profili görüntüle
+                <span aria-hidden="true" className="transition group-hover:translate-x-0.5">↗</span>
+              </p>
+            </div>
+          </Link>
 
           <h3 className="mt-1.5 line-clamp-2 text-[17px] font-semibold leading-6 text-[#1F2937] sm:mt-2 sm:text-lg">
             {project.title}
