@@ -17,6 +17,9 @@ export type ProjectListItem = {
   categories: Array<{
     id: number;
     name: string;
+    slug: string;
+    parent_id: number | null;
+    level: number | null;
   }>;
 };
 
@@ -36,7 +39,15 @@ type ProjectQueryRow = {
       }>
     | null;
   project_categories:
-  | Array<{ categories: { id: number; name: string } | null }>
+  | Array<{
+      category: {
+        id: number;
+        name: string;
+        slug: string;
+        parent_id: number | null;
+        level: number | null;
+      } | null;
+    }>
   | null;
 };
 
@@ -63,9 +74,12 @@ export async function getProjects(options: GetProjectsOptions = {}): Promise<Pro
         )
       ),
       project_categories (
-        categories:category_id (
+        category:category_id (
           id,
-          name
+          name,
+          slug,
+          parent_id,
+          level
         )
       )
       `,
@@ -102,8 +116,14 @@ export async function getProjects(options: GetProjectsOptions = {}): Promise<Pro
       ).values(),
     ),
     categories: (row.project_categories ?? [])
-      .map((joinRow) => joinRow.categories)
-      .filter((category): category is { id: number; name: string } =>
+      .map((joinRow) => joinRow.category)
+      .filter((category): category is {
+        id: number;
+        name: string;
+        slug: string;
+        parent_id: number | null;
+        level: number | null;
+      } =>
         Boolean(category),
       ),
   }));

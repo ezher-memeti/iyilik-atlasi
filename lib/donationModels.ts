@@ -36,6 +36,9 @@ export type KurbanProjectWithOrganization = KurbanProject & {
   categories: Array<{
     id: number;
     name: string;
+    slug: string;
+    parent_id: number | null;
+    level: number | null;
   }>;
   id: string;
 };

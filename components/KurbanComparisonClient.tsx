@@ -5,10 +5,16 @@ import { ComparisonTable } from "@/components/ComparisonTable";
 import { ProjectCard } from "@/components/ProjectCard";
 import common from "@/content/common.json";
 import { formatPrice, type KurbanProjectWithOrganization } from "@/lib/donationModels";
+import {
+  getDescendantCategoryIds,
+  getDirectChildren,
+  getPrimaryCategories,
+  type FlatCategory,
+} from "@/lib/categoryHierarchy";
 
 type KurbanComparisonClientProps = {
   projects: KurbanProjectWithOrganization[];
-  categories: Array<{ id: number; name: string }>;
+  categories: FlatCategory[];
   regions: Array<{ id: number; name: string }>;
   initialCategory?: string;
   initialRegion?: string;
@@ -23,8 +29,9 @@ const DEFAULT_SEARCH = "";
 const DEFAULT_REGION_FILTER: string[] = [];
 const DEFAULT_NGO_FILTER: string[] = [];
 const DEFAULT_SORT: SortType = "popular";
-const DEFAULT_CATEGORY = "Kurban";
 const PROJECTS_PER_PAGE = 24;
+const ALL_CATEGORIES_TAB_ID = -1;
+const ALL_CATEGORIES_TAB_LABEL = "Tümü";
 
 function normalizeText(value: string) {
   return value.toLocaleLowerCase("tr-TR");
@@ -98,31 +105,9 @@ function includesText(value: string, query: string) {
   return normalizedValue.includes(normalizedQuery);
 }
 
-function matchesCategoryAndSearch(
-  project: KurbanProjectWithOrganization,
-  selectedCategory: string,
-  search: string,
-) {
-  const selectedCategoryNormalized = normalizeText(selectedCategory);
+function matchesSearch(project: KurbanProjectWithOrganization, search: string) {
   const query = search.trim().toLocaleLowerCase("tr-TR");
-  const categoryNames = project.categories.map((category) => normalizeText(category.name));
-  const normalizedTitle = normalizeText(project.title);
-  const normalizedDescription = normalizeText(project.description);
-
-  const categoryMatch =
-    selectedCategoryNormalized === normalizeText(DEFAULT_CATEGORY)
-      ? categoryNames.length === 0 ||
-      categoryNames.some((name) => name.includes("kurban")) ||
-      normalizedTitle.includes("kurban") ||
-      normalizedDescription.includes("kurban")
-      : categoryNames.length === 0
-        ? normalizedTitle.includes(selectedCategoryNormalized) ||
-        normalizedDescription.includes(selectedCategoryNormalized)
-        : categoryNames.some((name) => name.includes(selectedCategoryNormalized));
-
-  if (!categoryMatch) return false;
   if (!query) return true;
-
   return (
     project.organization.name.toLocaleLowerCase("tr-TR").includes(query) ||
     project.title.toLocaleLowerCase("tr-TR").includes(query) ||
@@ -163,13 +148,16 @@ export function KurbanComparisonClient({
   const tabsScrollRef = useRef<HTMLDivElement | null>(null);
   const resultsTopRef = useRef<HTMLDivElement | null>(null);
   const categoryButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const lastAppliedInitialCategoryRef = useRef<string>("");
+  const lastAppliedInitialCategoryRef = useRef<number | null>(null);
   const hasHandledInitialProjectRef = useRef(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isCompareOpen, setIsCompareOpen] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState(
-    cleanCategoryLabel(initialCategory ?? "") || DEFAULT_CATEGORY,
+  const primaryCategories = useMemo(() => getPrimaryCategories(categories), [categories]);
+  const defaultPrimaryCategoryId = primaryCategories[0]?.id ?? null;
+  const [selectedPrimaryCategoryId, setSelectedPrimaryCategoryId] = useState<number | null>(
+    ALL_CATEGORIES_TAB_ID,
   );
+  const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<number | null>(null);
 
   const [search, setSearch] = useState(DEFAULT_SEARCH);
   const [selectedPriceRange, setSelectedPriceRange] = useState<PriceBounds | null>(null);
@@ -201,19 +189,29 @@ export function KurbanComparisonClient({
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
 
-  const categoryTabs = useMemo(() => {
-    const fetched = categories.length
-      ? categories.map((category) => cleanCategoryLabel(category.name))
-      : [DEFAULT_CATEGORY];
-
-    const unique = Array.from(new Set(fetched.filter(Boolean)));
-
-    if (!unique.some((name) => normalizeText(name) === normalizeText(DEFAULT_CATEGORY))) {
-      return [DEFAULT_CATEGORY, ...unique];
-    }
-
-    return unique;
-  }, [categories]);
+  const categoryTabs = useMemo(
+    () =>
+      [{ id: ALL_CATEGORIES_TAB_ID, name: ALL_CATEGORIES_TAB_LABEL }].concat(primaryCategories.map((category) => ({
+        id: category.id,
+        name: cleanCategoryLabel(category.name),
+      }))),
+    [primaryCategories],
+  );
+  const selectedPrimaryCategory = useMemo(
+    () => primaryCategories.find((category) => category.id === selectedPrimaryCategoryId) ?? null,
+    [primaryCategories, selectedPrimaryCategoryId],
+  );
+  const subcategoryChips = useMemo(() => {
+    if (!selectedPrimaryCategory) return [];
+    return getDirectChildren(categories, selectedPrimaryCategory.id).map((category) => ({
+      id: category.id,
+      name: cleanCategoryLabel(category.name),
+    }));
+  }, [categories, selectedPrimaryCategory]);
+  const selectedPrimaryAndDescendantIds = useMemo(() => {
+    if (!selectedPrimaryCategory) return null;
+    return getDescendantCategoryIds(categories, selectedPrimaryCategory.id);
+  }, [categories, selectedPrimaryCategory]);
 
   const selectedSortLabel = useMemo(() => {
     switch (sortBy) {
@@ -230,25 +228,31 @@ export function KurbanComparisonClient({
   }, [sortBy]);
 
   useEffect(() => {
-    const exists = categoryTabs.some(
-      (tab) => normalizeText(tab) === normalizeText(selectedCategory),
-    );
+    const exists = categoryTabs.some((tab) => tab.id === selectedPrimaryCategoryId);
 
     if (!exists && categoryTabs.length > 0) {
-      setSelectedCategory(categoryTabs[0]);
+      setSelectedPrimaryCategoryId(ALL_CATEGORIES_TAB_ID);
+      setSelectedSubcategoryId(null);
     }
-  }, [categoryTabs, selectedCategory]);
+  }, [categoryTabs, selectedPrimaryCategoryId]);
 
   useEffect(() => {
     const cleanedInitial = cleanCategoryLabel(initialCategory ?? "");
     if (!cleanedInitial) return;
+    const matched = categories.find(
+      (category) =>
+        normalizeText(category.name) === normalizeText(cleanedInitial) ||
+        normalizeText(category.slug ?? "") === normalizeText(cleanedInitial),
+    );
+    if (!matched) return;
+    const parent = matched.parent_id === null ? matched : categories.find((item) => item.id === matched.parent_id);
+    const nextParentId = parent?.id ?? matched.id;
+    if (lastAppliedInitialCategoryRef.current === nextParentId) return;
+    lastAppliedInitialCategoryRef.current = nextParentId;
 
-    const normalizedInitial = normalizeText(cleanedInitial);
-    if (lastAppliedInitialCategoryRef.current === normalizedInitial) return;
-    lastAppliedInitialCategoryRef.current = normalizedInitial;
-
-    if (normalizeText(cleanedInitial) !== normalizeText(selectedCategory)) {
-      setSelectedCategory(cleanedInitial);
+    if (nextParentId !== selectedPrimaryCategoryId || selectedSubcategoryId !== matched.id) {
+      setSelectedPrimaryCategoryId(nextParentId);
+      setSelectedSubcategoryId(matched.parent_id === null ? null : matched.id);
       setSearch(DEFAULT_SEARCH);
       setSelectedPriceRange(null);
       setRegionFilter(DEFAULT_REGION_FILTER);
@@ -265,7 +269,7 @@ export function KurbanComparisonClient({
       setDraftNgoFilter(DEFAULT_NGO_FILTER);
       setDraftNgoSearch("");
     }
-  }, [initialCategory]);
+  }, [categories, initialCategory, selectedPrimaryCategoryId, selectedSubcategoryId]);
 
   useEffect(() => {
     if (!initialRegion) return;
@@ -284,14 +288,14 @@ export function KurbanComparisonClient({
   }, [initialSearch]);
 
   useEffect(() => {
-    const selectedButton = categoryButtonRefs.current[selectedCategory];
+    const selectedButton = categoryButtonRefs.current[String(selectedPrimaryCategoryId ?? "")];
     if (!selectedButton) return;
     selectedButton.scrollIntoView({
       behavior: "smooth",
       inline: "center",
       block: "nearest",
     });
-  }, [selectedCategory, categoryTabs]);
+  }, [selectedPrimaryCategoryId, categoryTabs]);
 
   const selectedProjects = useMemo(
     () => projects.filter((project) => selectedIds.includes(project.id)),
@@ -307,9 +311,27 @@ export function KurbanComparisonClient({
   );
 
   const projectsAfterCategorySearch = useMemo(
-    () =>
-      projects.filter((project) => matchesCategoryAndSearch(project, selectedCategory, search)),
-    [projects, search, selectedCategory],
+    () => {
+      if (selectedPrimaryCategoryId === ALL_CATEGORIES_TAB_ID) {
+        return projects.filter((project) => matchesSearch(project, search));
+      }
+      const idsToMatch = selectedSubcategoryId
+        ? new Set([selectedSubcategoryId])
+        : selectedPrimaryAndDescendantIds;
+      return projects
+        .filter((project) => {
+          if (!idsToMatch || idsToMatch.size === 0) return true;
+          return project.categories.some((category) => idsToMatch.has(category.id));
+        })
+        .filter((project) => matchesSearch(project, search));
+    },
+    [
+      projects,
+      search,
+      selectedPrimaryAndDescendantIds,
+      selectedPrimaryCategoryId,
+      selectedSubcategoryId,
+    ],
   );
 
   const baseFilteredProjects = useMemo(
@@ -461,8 +483,14 @@ export function KurbanComparisonClient({
     const hasSearch = cleanedSearch.length > 0;
     const hasRegion = regionFilter.length > 0;
     const hasSingleRegion = regionFilter.length === 1;
-    const hasCategory = normalizeText(selectedCategory) !== normalizeText(DEFAULT_CATEGORY);
-    const categoryLabel = hasCategory ? selectedCategory : "Kurban";
+    const hasCategory =
+      selectedPrimaryCategoryId !== null &&
+      selectedPrimaryCategoryId !== ALL_CATEGORIES_TAB_ID &&
+      (selectedPrimaryCategoryId !== defaultPrimaryCategoryId || selectedSubcategoryId !== null);
+    const selectedSubcategory = categories.find((category) => category.id === selectedSubcategoryId) ?? null;
+    const categoryLabel = selectedSubcategory
+      ? cleanCategoryLabel(selectedSubcategory.name)
+      : cleanCategoryLabel(selectedPrimaryCategory?.name ?? "Kategori");
     const regionLabel = hasSingleRegion
       ? regionFilter[0]
       : `${regionFilter.length} bölge`;
@@ -499,7 +527,16 @@ export function KurbanComparisonClient({
       title: `Keşfedilecek ${countText} bağış seçeneği`,
       subtitle: "Tüm bağış projeleri arasından size uygun olanı bulun.",
     };
-  }, [filteredProjects.length, regionFilter, search, selectedCategory]);
+  }, [
+    categories,
+    defaultPrimaryCategoryId,
+    filteredProjects.length,
+    regionFilter,
+    search,
+    selectedPrimaryCategory,
+    selectedPrimaryCategoryId,
+    selectedSubcategoryId,
+  ]);
 
   const dynamicRegionCounts = useMemo(() => {
     const manualPriceRange = isPriceSetByUser ? effectivePriceRange : null;
@@ -718,14 +755,19 @@ export function KurbanComparisonClient({
     setDraftUserPreferredPriceRange(nextRange);
   }
 
-  function handleCategoryChange(category: string) {
-    if (category === selectedCategory) return;
-    setSelectedCategory(category);
+  function handleCategoryChange(categoryId: number) {
+    if (categoryId === selectedPrimaryCategoryId) return;
+    setSelectedPrimaryCategoryId(categoryId);
+    setSelectedSubcategoryId(null);
+  }
+
+  function handleSubcategoryChange(categoryId: number | null) {
+    setSelectedSubcategoryId(categoryId);
   }
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, selectedCategory, sortBy, regionFilter, ngoFilter, selectedPriceRange]);
+  }, [search, selectedPrimaryCategoryId, selectedSubcategoryId, sortBy, regionFilter, ngoFilter, selectedPriceRange]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -776,21 +818,21 @@ export function KurbanComparisonClient({
           >
             <div className="flex w-max min-w-full gap-6 pr-4 sm:gap-8 sm:pr-6">
               {categoryTabs.map((tab) => {
-                const isActive = tab === selectedCategory;
+                const isActive = tab.id === selectedPrimaryCategoryId;
                 return (
                   <button
-                    key={tab}
+                    key={tab.id}
                     type="button"
-                    onClick={() => handleCategoryChange(tab)}
+                    onClick={() => handleCategoryChange(tab.id)}
                     ref={(el) => {
-                      categoryButtonRefs.current[tab] = el;
+                      categoryButtonRefs.current[String(tab.id)] = el;
                     }}
                     className={`-mb-px border-b-2 px-1 py-3 text-sm font-semibold transition-colors duration-200 ${isActive
                       ? "border-brand-primary text-brand-primary"
                       : "border-transparent text-text-secondary hover:text-text-primary"
                       }`}
                   >
-                    {tab}
+                    {tab.name}
                   </button>
                 );
               })}
@@ -824,6 +866,36 @@ export function KurbanComparisonClient({
             </>
           ) : null}
         </div>
+
+        {subcategoryChips.length > 0 ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleSubcategoryChange(null)}
+              className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition ${
+                selectedSubcategoryId === null
+                  ? "border-brand-primary bg-brand-primary/10 text-brand-primary"
+                  : "border-divider-softLight bg-white text-text-secondary hover:bg-surface-categoryLight hover:text-text-primary"
+              }`}
+            >
+              Tümü
+            </button>
+            {subcategoryChips.map((subcategory) => (
+              <button
+                key={subcategory.id}
+                type="button"
+                onClick={() => handleSubcategoryChange(subcategory.id)}
+                className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition ${
+                  selectedSubcategoryId === subcategory.id
+                    ? "border-brand-primary bg-brand-primary/10 text-brand-primary"
+                    : "border-divider-softLight bg-white text-text-secondary hover:bg-surface-categoryLight hover:text-text-primary"
+                }`}
+              >
+                {subcategory.name}
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         <div className="mt-1 lg:hidden">
           <div className="flex items-center gap-2">
@@ -1097,15 +1169,33 @@ export function KurbanComparisonClient({
           {(regionFilter.length > 0 ||
             ngoFilter.length > 0 ||
             search.trim().length > 0 ||
-            normalizeText(selectedCategory) !== normalizeText(DEFAULT_CATEGORY)) ? (
+            (selectedPrimaryCategoryId !== null &&
+              selectedPrimaryCategoryId !== defaultPrimaryCategoryId &&
+              selectedPrimaryCategoryId !== ALL_CATEGORIES_TAB_ID) ||
+            selectedSubcategoryId !== null) ? (
             <div className="flex flex-wrap items-center gap-2">
-              {normalizeText(selectedCategory) !== normalizeText(DEFAULT_CATEGORY) ? (
+              {selectedPrimaryCategory &&
+              selectedPrimaryCategoryId !== null &&
+              selectedPrimaryCategoryId !== defaultPrimaryCategoryId &&
+              selectedPrimaryCategoryId !== ALL_CATEGORIES_TAB_ID ? (
                 <button
                   type="button"
-                  onClick={() => setSelectedCategory(DEFAULT_CATEGORY)}
+                  onClick={() => {
+                    setSelectedSubcategoryId(null);
+                    setSelectedPrimaryCategoryId(ALL_CATEGORIES_TAB_ID);
+                  }}
                   className="inline-flex items-center rounded-full border border-divider-softLight bg-white px-2.5 py-1 text-xs font-medium text-text-secondary transition hover:bg-surface-categoryLight hover:text-text-primary"
                 >
-                  ✓ {selectedCategory} ×
+                  ✓ {cleanCategoryLabel(selectedPrimaryCategory.name)} ×
+                </button>
+              ) : null}
+              {selectedSubcategoryId !== null ? (
+                <button
+                  type="button"
+                  onClick={() => setSelectedSubcategoryId(null)}
+                  className="inline-flex items-center rounded-full border border-divider-softLight bg-white px-2.5 py-1 text-xs font-medium text-text-secondary transition hover:bg-surface-categoryLight hover:text-text-primary"
+                >
+                  ✓ {cleanCategoryLabel(categories.find((item) => item.id === selectedSubcategoryId)?.name ?? "")} ×
                 </button>
               ) : null}
               {regionFilter.map((region) => (
@@ -1146,6 +1236,12 @@ export function KurbanComparisonClient({
                 project={project}
                 selected={selectedIds.includes(project.id)}
                 onToggle={toggleProject}
+                showPrimaryCategories={selectedPrimaryCategoryId === ALL_CATEGORIES_TAB_ID}
+                allCategories={categories.map((category) => ({
+                  id: category.id,
+                  name: category.name,
+                  parent_id: category.parent_id,
+                }))}
               />
             ))}
           </div>

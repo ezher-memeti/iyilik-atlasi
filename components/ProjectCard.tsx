@@ -10,6 +10,12 @@ type ProjectCardProps = {
   selected?: boolean;
   onToggle?: (projectId: string) => void;
   recommended?: boolean;
+  showPrimaryCategories?: boolean;
+  allCategories?: Array<{
+    id: number;
+    name: string;
+    parent_id: number | null;
+  }>;
 };
 
 export function ProjectCard({
@@ -17,6 +23,8 @@ export function ProjectCard({
   selected = false,
   onToggle,
   recommended = false,
+  showPrimaryCategories = false,
+  allCategories = [],
 }: ProjectCardProps) {
   const [logoLoadFailed, setLogoLoadFailed] = useState(false);
 
@@ -31,6 +39,22 @@ export function ProjectCard({
     .slice(0, 2)
     .map((part) => part[0]?.toLocaleUpperCase("tr-TR") ?? "")
     .join("");
+  const secondaryCategories = project.categories.filter((category) => category.parent_id !== null);
+  const categoryById = new Map(allCategories.map((category) => [category.id, category]));
+  const primaryCategoryById = new Map<number, { id: number; name: string; parent_id: number | null }>();
+
+  project.categories.forEach((category) => {
+    if (category.parent_id === null) {
+      primaryCategoryById.set(category.id, category);
+      return;
+    }
+    const parent = categoryById.get(category.parent_id);
+    if (parent && parent.parent_id === null) {
+      primaryCategoryById.set(parent.id, parent);
+    }
+  });
+
+  const primaryCategories = Array.from(primaryCategoryById.values());
 
   return (
     <article
@@ -99,11 +123,24 @@ export function ProjectCard({
           </div>
 
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5 sm:mt-2">
-            {project.categories[0] ? (
-              <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700 sm:px-2.5 sm:py-1 sm:text-xs">
-                {project.categories[0].name}
+            {showPrimaryCategories
+              ? primaryCategories.map((category) => (
+                <span
+                  key={`${project.id}-primary-${category.id}`}
+                  className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-900 sm:px-2.5 sm:py-1 sm:text-xs"
+                >
+                  {category.name}
+                </span>
+              ))
+              : null}
+            {secondaryCategories.map((category) => (
+              <span
+                key={`${project.id}-secondary-${category.id}`}
+                className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700 sm:px-2.5 sm:py-1 sm:text-xs"
+              >
+                {category.name}
               </span>
-            ) : null}
+            ))}
             {project.regions?.map((region) => (
               <span
                 key={`${project.id}-${region}`}

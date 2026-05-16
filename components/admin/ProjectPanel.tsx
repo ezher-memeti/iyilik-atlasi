@@ -7,9 +7,17 @@ import {
   getAdminTextValidationMessage,
   isAllowedAdminText,
 } from "@/lib/adminTextValidation";
+import {
+  buildExpandedCategoryIds,
+  getDescendantCategoryIds,
+  getDirectChildren,
+  getPrimaryCategories,
+  sortCategories,
+  type FlatCategory,
+} from "@/lib/categoryHierarchy";
 
 type NgoOption = { id: number; name: string };
-type CategoryOption = { id: number; name: string };
+type CategoryOption = FlatCategory;
 type RegionOption = { id: number; name: string };
 type ProjectCategoryRow = { category_id: number };
 type ProjectBolgeRow = { bolge_id: number };
@@ -21,6 +29,7 @@ type ProjectListItem = {
   ngo_id: number;
   regions: Array<{ id: number; name: string }>;
   categoryIds: number[];
+  categories: Array<{ id: number; name: string; parent_id: number | null }>;
   ngo: { name: string } | null;
   position: number | null;
 };
@@ -40,7 +49,10 @@ type ProjectRow = {
   ngo: { name: string } | { name: string }[] | null;
   project_categories:
     | Array<{
-        category: { id: number; name: string } | { id: number; name: string }[] | null;
+        category:
+          | { id: number; name: string; parent_id: number | null }
+          | { id: number; name: string; parent_id: number | null }[]
+          | null;
       }>
     | null;
 };
@@ -70,13 +82,24 @@ function mapProjectToSortableItem(
   handleDelete: (projectId: number) => void,
   withActions = true,
 ): SortableListItem {
+  const secondaryCategoryNames = Array.from(
+    new Set(
+      project.categories
+        .filter((category) => category.parent_id !== null)
+        .map((category) => category.name),
+    ),
+  );
+  const secondaryCategoryLabel = secondaryCategoryNames.length
+    ? secondaryCategoryNames.join(", ")
+    : "Yok";
+
   return {
     id: project.id,
     primary: project.title,
     meta: `Kurum: ${project.ngo?.name ?? "Bilinmiyor"}`,
     secondary: `Kurum: ${project.ngo?.name ?? "Bilinmiyor"} · Bölge: ${
       project.regions.length ? project.regions.map((region) => region.name).join(", ") : "Belirtilmedi"
-    } · Tutar: ${project.price ?? 0}`,
+    } · Alt kategoriler: ${secondaryCategoryLabel} · Tutar: ${project.price ?? 0}`,
     link: project.donation_url,
     isHighlighted: editingProjectId === project.id,
     actions: withActions ? (
@@ -204,6 +227,12 @@ export function ProjectPanel() {
     selectedRegionIds,
     title,
   ]);
+  const sortedCategories = useMemo(() => sortCategories(categories), [categories]);
+  const primaryCategories = useMemo(() => getPrimaryCategories(sortedCategories), [sortedCategories]);
+  const effectiveSelectedCategoryIds = useMemo(
+    () => buildExpandedCategoryIds(sortedCategories, selectedCategoryIds),
+    [selectedCategoryIds, sortedCategories],
+  );
 
   const filteredReorderedItems = useMemo(() => {
     const query = searchQuery.trim().toLocaleLowerCase("tr-TR");
@@ -236,17 +265,17 @@ export function ProjectPanel() {
           .order("position", { ascending: true, nullsFirst: false }),
         supabase
           .from("category")
-          .select("id,name")
+          .select("id,name,parent_id,level,position,slug,description,image_url")
           .order("position", { ascending: true, nullsFirst: false }),
         supabase.from("bolge").select("id,name").order("id"),
         (hasActiveFilter
           ? supabase
               .from("project")
-              .select("id,title,price,donation_url,ngo_id,position,ngo:ngo_id(name),project_bolge(bolge:bolge_id(id,name)),project_categories(category:category_id(id,name))")
+              .select("id,title,price,donation_url,ngo_id,position,ngo:ngo_id(name),project_bolge(bolge:bolge_id(id,name)),project_categories(category:category_id(id,name,slug,parent_id,level,position))")
               .order("id", { ascending: false })
           : supabase
               .from("project")
-              .select("id,title,price,donation_url,ngo_id,position,ngo:ngo_id(name),project_bolge(bolge:bolge_id(id,name)),project_categories(category:category_id(id,name))")
+              .select("id,title,price,donation_url,ngo_id,position,ngo:ngo_id(name),project_bolge(bolge:bolge_id(id,name)),project_categories(category:category_id(id,name,slug,parent_id,level,position))")
               .order("id", { ascending: false })),
       ]);
 
@@ -256,7 +285,7 @@ export function ProjectPanel() {
       if (projectRes.error) throw projectRes.error;
 
       setNgos((ngoRes.data ?? []) as NgoOption[]);
-      setCategories((categoryRes.data ?? []) as CategoryOption[]);
+      setCategories(sortCategories((categoryRes.data ?? []) as CategoryOption[]));
       setRegions((regionRes.data ?? []) as RegionOption[]);
       const mappedProjects = ((projectRes.data ?? []) as ProjectRow[]).map((row) => ({
         id: row.id,
@@ -285,6 +314,19 @@ export function ProjectPanel() {
               })
               .filter((id): id is number => typeof id === "number"),
           ),
+        ),
+        categories: Array.from(
+          new Map(
+            (row.project_categories ?? [])
+              .map((item) => (Array.isArray(item.category) ? item.category[0] ?? null : item.category))
+              .filter(
+                (
+                  category,
+                ): category is { id: number; name: string; parent_id: number | null } =>
+                  Boolean(category),
+              )
+              .map((category) => [category.id, category]),
+          ).values(),
         ),
         position: row.position,
         ngo: Array.isArray(row.ngo) ? row.ngo[0] ?? null : row.ngo,
@@ -343,6 +385,19 @@ export function ProjectPanel() {
     );
   }
 
+  function togglePrimaryCategoryGroup(primaryId: number) {
+    const descendants = getDescendantCategoryIds(sortedCategories, primaryId);
+    const groupIds = new Set(descendants);
+    const currentlySelected = effectiveSelectedCategoryIds.includes(primaryId);
+
+    setSelectedCategoryIds((current) => {
+      if (currentlySelected) {
+        return current.filter((id) => !groupIds.has(id));
+      }
+      return Array.from(new Set([...current, primaryId]));
+    });
+  }
+
   function toggleRegion(id: number) {
     setSelectedRegionIds((current) =>
       current.includes(id) ? current.filter((value) => value !== id) : [...current, id],
@@ -384,7 +439,9 @@ export function ProjectPanel() {
         .eq("project_id", project.id);
       if (regionRelationError) throw regionRelationError;
 
-      const categoryIds = ((data ?? []) as ProjectCategoryRow[]).map((item) => item.category_id);
+      const categoryIds = Array.from(
+        new Set(((data ?? []) as ProjectCategoryRow[]).map((item) => item.category_id)),
+      );
       const regionIds = ((regionData ?? []) as ProjectBolgeRow[]).map((item) => item.bolge_id);
 
       setEditingProjectId(project.id);
@@ -524,7 +581,8 @@ export function ProjectPanel() {
         throw new Error("Proje kimliği bulunamadı.");
       }
 
-      const junctionPayload = selectedCategoryIds.map((categoryId) => ({
+      const finalCategoryIds = buildExpandedCategoryIds(sortedCategories, selectedCategoryIds);
+      const junctionPayload = finalCategoryIds.map((categoryId) => ({
         project_id: projectId,
         category_id: categoryId,
       }));
@@ -666,7 +724,7 @@ export function ProjectPanel() {
       setError(null);
       const { data, error: fetchError } = await supabase
         .from("project")
-        .select("id,title,price,donation_url,ngo_id,position,ngo:ngo_id(name),project_bolge(bolge:bolge_id(id,name)),project_categories(category:category_id(id,name))")
+        .select("id,title,price,donation_url,ngo_id,position,ngo:ngo_id(name),project_bolge(bolge:bolge_id(id,name)),project_categories(category:category_id(id,name,slug,parent_id,level))")
         .order("position", { ascending: true, nullsFirst: false });
       if (fetchError) throw fetchError;
 
@@ -695,6 +753,19 @@ export function ProjectPanel() {
               })
               .filter((id): id is number => typeof id === "number"),
           ),
+        ),
+        categories: Array.from(
+          new Map(
+            (row.project_categories ?? [])
+              .map((item) => (Array.isArray(item.category) ? item.category[0] ?? null : item.category))
+              .filter(
+                (
+                  category,
+                ): category is { id: number; name: string; parent_id: number | null } =>
+                  Boolean(category),
+              )
+              .map((category) => [category.id, category]),
+          ).values(),
         ),
         position: row.position,
         ngo: Array.isArray(row.ngo) ? row.ngo[0] ?? null : row.ngo,
@@ -833,27 +904,59 @@ export function ProjectPanel() {
             </div>
           </fieldset>
 
-          <fieldset>
-            <legend className="text-sm font-medium">Kategoriler * (en az 1)</legend>
-            <div className="mt-2 grid gap-2 sm:grid-cols-2">
-              {categories.map((category) => (
-                <label
-                  key={category.id}
-                  className="inline-flex items-center gap-2 rounded-md border border-divider-softLight bg-surface-pageLight px-3 py-2 text-sm"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedCategoryIds.includes(category.id)}
-                    onChange={() => toggleCategory(category.id)}
-                    disabled={isSaving}
-                  />
-                  {category.name}
-                </label>
-              ))}
+          <fieldset className="space-y-3">
+            <legend className="text-sm font-medium">Kategori Ataması *</legend>
+            <div className="rounded-lg border border-divider-softLight bg-white p-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {primaryCategories.map((primary) => {
+                const children = getDirectChildren(sortedCategories, primary.id);
+                const primaryChecked = effectiveSelectedCategoryIds.includes(primary.id);
+                return (
+                  <div
+                    key={primary.id}
+                    className="h-full rounded-md border border-divider-softLight/70 bg-surface-pageLight/60 p-2"
+                  >
+                    <label className="inline-flex items-center gap-2 text-sm font-semibold text-text-primary">
+                      <input
+                        type="checkbox"
+                        checked={primaryChecked}
+                        onChange={() => togglePrimaryCategoryGroup(primary.id)}
+                        disabled={isSaving}
+                      />
+                      {primary.name}
+                    </label>
+                    {children.length > 0 ? (
+                      <div className="mt-2 space-y-1 border-l border-divider-softLight pl-3">
+                        {children.map((child) => {
+                          const childChecked = selectedCategoryIds.includes(child.id);
+                          return (
+                            <label
+                              key={child.id}
+                              className="inline-flex w-full items-center gap-2 rounded-md px-2 py-1 text-sm text-text-secondary hover:bg-surface-categoryLight"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={childChecked}
+                                onChange={() => toggleCategory(child.id)}
+                                disabled={isSaving}
+                              />
+                              {child.name}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-xs text-text-secondary">Alt kategori yok.</p>
+                    )}
+                  </div>
+                );
+              })}
+              </div>
             </div>
-            {fieldErrors.categories ? (
-              <p className="mt-1 text-xs text-red-600">{fieldErrors.categories}</p>
-            ) : null}
+            <p className="text-xs text-text-secondary">
+              Alt kategori seçildiğinde üst kategorileri kayıt sırasında otomatik eklenir.
+            </p>
+            {fieldErrors.categories ? <p className="mt-1 text-xs text-red-600">{fieldErrors.categories}</p> : null}
           </fieldset>
 
           <div className="sticky bottom-0 z-10 -mx-4 flex flex-col gap-2 border-t border-divider-softLight bg-surface-pageLight px-4 py-3 sm:mx-0 sm:flex-row sm:items-center sm:border-t-0 sm:bg-transparent sm:px-0 sm:py-0">

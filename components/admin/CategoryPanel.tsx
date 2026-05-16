@@ -8,14 +8,15 @@ import {
   getAdminTextValidationMessage,
   isAllowedAdminText,
 } from "@/lib/adminTextValidation";
+import {
+  getDescendantCategoryIds,
+  getDirectChildren,
+  getPrimaryCategories,
+  sortCategories,
+  type FlatCategory,
+} from "@/lib/categoryHierarchy";
 
-type CategoryItem = {
-  id: number;
-  name: string;
-  description: string | null;
-  image_url: string | null;
-  position: number | null;
-};
+type CategoryItem = FlatCategory;
 
 type ToastItem = {
   id: number;
@@ -67,6 +68,7 @@ export function CategoryPanel() {
 
   const [name, setName] = useState(INITIAL_NAME);
   const [description, setDescription] = useState(INITIAL_DESCRIPTION);
+  const [parentCategoryId, setParentCategoryId] = useState<string>("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
@@ -88,11 +90,12 @@ export function CategoryPanel() {
   const [error, setError] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const [fieldErrors, setFieldErrors] = useState<{ name?: string; description?: string }>({});
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; description?: string; parent?: string }>({});
   const [initialFormState, setInitialFormState] = useState({
     name: INITIAL_NAME,
     description: INITIAL_DESCRIPTION,
     imageUrl: "",
+    parentCategoryId: "",
   });
 
   const isEditMode = editingCategoryId !== null;
@@ -126,9 +129,32 @@ export function CategoryPanel() {
       name.trim() !== initialFormState.name.trim() ||
       description.trim() !== initialFormState.description.trim() ||
       (imageUrl ?? "") !== initialFormState.imageUrl ||
+      parentCategoryId !== initialFormState.parentCategoryId ||
       Boolean(selectedImageFile),
-    [description, imageUrl, initialFormState.description, initialFormState.imageUrl, initialFormState.name, name, selectedImageFile],
+    [
+      description,
+      imageUrl,
+      initialFormState.description,
+      initialFormState.imageUrl,
+      initialFormState.name,
+      initialFormState.parentCategoryId,
+      name,
+      parentCategoryId,
+      selectedImageFile,
+    ],
   );
+  const primaryCategoryOptions = useMemo(
+    () => getPrimaryCategories(categories).filter((category) => category.id !== editingCategoryId),
+    [categories, editingCategoryId],
+  );
+  const hierarchyOrderedCategories = useMemo(() => {
+    const orderIndexById = new Map(reorderedItems.map((item, index) => [item.id, index]));
+    return [...categories].sort((a, b) => {
+      const indexA = orderIndexById.get(a.id) ?? Number.MAX_SAFE_INTEGER;
+      const indexB = orderIndexById.get(b.id) ?? Number.MAX_SAFE_INTEGER;
+      return indexA - indexB;
+    });
+  }, [categories, reorderedItems]);
 
   const displayedPreviewUrl = imagePreviewUrl ?? imageUrl;
 
@@ -172,12 +198,14 @@ export function CategoryPanel() {
     try {
       setIsLoading(true);
       setError(null);
-      let query = supabase.from("category").select("id,name,description,image_url,position");
-      query = query.order("id", { ascending: false });
+      let query = supabase
+        .from("category")
+        .select("id,name,slug,description,image_url,parent_id,level,position");
+      query = query.order("position", { ascending: true, nullsFirst: false });
       const { data, error: fetchError } = await query;
 
       if (fetchError) throw fetchError;
-      const next = (data ?? []) as CategoryItem[];
+      const next = sortCategories((data ?? []) as CategoryItem[]);
       setCategories(next);
       const listItems = mapToSortableItems(next);
       setOriginalItems(listItems);
@@ -227,6 +255,31 @@ export function CategoryPanel() {
       );
     });
   }, [categories, reorderedItems, searchQuery]);
+  const visibleCategoryIds = useMemo(
+    () => new Set(filteredReorderedItems.map((item) => item.id)),
+    [filteredReorderedItems],
+  );
+
+  function categoryActionButtons(category: CategoryItem) {
+    return (
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => handleEdit(category)}
+          className="inline-flex h-9 items-center justify-center rounded-lg border border-divider-softLight bg-surface-pageLight px-3 text-xs font-semibold text-text-primary transition hover:bg-surface-categoryLight"
+        >
+          Düzenle
+        </button>
+        <button
+          type="button"
+          onClick={() => handleDelete(category.id)}
+          className="inline-flex h-9 items-center justify-center rounded-lg border border-red-300 bg-red-50 px-3 text-xs font-semibold text-red-700 transition hover:bg-red-100"
+        >
+          {isDeletingId === category.id ? "Siliniyor..." : "Sil"}
+        </button>
+      </div>
+    );
+  }
 
   function resetPreview() {
     if (imagePreviewUrl?.startsWith("blob:")) {
@@ -240,6 +293,7 @@ export function CategoryPanel() {
   function resetForm() {
     setName(INITIAL_NAME);
     setDescription(INITIAL_DESCRIPTION);
+    setParentCategoryId("");
     setImageUrl(null);
     resetPreview();
     setEditingCategoryId(null);
@@ -248,6 +302,7 @@ export function CategoryPanel() {
       name: INITIAL_NAME,
       description: INITIAL_DESCRIPTION,
       imageUrl: "",
+      parentCategoryId: "",
     });
   }
 
@@ -265,12 +320,14 @@ export function CategoryPanel() {
     setEditingCategoryId(category.id);
     setName(category.name);
     setDescription(category.description ?? "");
+    setParentCategoryId(category.parent_id !== null ? String(category.parent_id) : "");
     setImageUrl(category.image_url ?? null);
     resetPreview();
     setInitialFormState({
       name: category.name ?? "",
       description: category.description ?? "",
       imageUrl: category.image_url ?? "",
+      parentCategoryId: category.parent_id !== null ? String(category.parent_id) : "",
     });
     requestAnimationFrame(() => {
       formSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -370,6 +427,36 @@ export function CategoryPanel() {
       setError("Kategori açıklaması en fazla 200 karakter olabilir.");
       return;
     }
+    const selectedParentId = parentCategoryId ? Number(parentCategoryId) : null;
+    const parentCategory =
+      selectedParentId !== null
+        ? categories.find((category) => category.id === selectedParentId) ?? null
+        : null;
+    const computedLevel = Math.max(1, Math.min(3, (parentCategory?.level ?? 0) + 1));
+
+    if (selectedParentId !== null && !parentCategory) {
+      setFieldErrors({ parent: "Geçerli bir üst kategori seçin." });
+      setError("Geçerli bir üst kategori seçin.");
+      return;
+    }
+    if (isEditMode && editingCategoryId !== null && selectedParentId === editingCategoryId) {
+      setFieldErrors({ parent: "Kategori kendisinin üst kategorisi olamaz." });
+      setError("Kategori kendisinin üst kategorisi olamaz.");
+      return;
+    }
+    if (isEditMode && editingCategoryId !== null && selectedParentId !== null) {
+      const descendants = getDescendantCategoryIds(categories, editingCategoryId);
+      if (descendants.has(selectedParentId)) {
+        setFieldErrors({ parent: "Kategori kendi alt kategorisinin altına taşınamaz." });
+        setError("Kategori kendi alt kategorisinin altına taşınamaz.");
+        return;
+      }
+    }
+    if (computedLevel > 3) {
+      setFieldErrors({ parent: "En fazla 3 seviye kategori oluşturabilirsiniz." });
+      setError("En fazla 3 seviye kategori oluşturabilirsiniz.");
+      return;
+    }
 
     const snapshot = categories;
 
@@ -390,6 +477,8 @@ export function CategoryPanel() {
                 name: trimmed,
                 description: trimmedDescription || null,
                 image_url: nextImageUrl || null,
+                parent_id: selectedParentId,
+                level: computedLevel,
               }
             : item,
         );
@@ -403,6 +492,8 @@ export function CategoryPanel() {
             name: trimmed,
             description: trimmedDescription || null,
             image_url: nextImageUrl || null,
+            parent_id: selectedParentId,
+            level: computedLevel,
           })
           .eq("id", editingCategoryId);
         if (updateError) throw updateError;
@@ -417,6 +508,8 @@ export function CategoryPanel() {
           name: trimmed,
           description: trimmedDescription || null,
           image_url: nextImageUrl || null,
+          parent_id: selectedParentId,
+          level: computedLevel,
           position: maxPosition + 1,
         };
 
@@ -429,6 +522,8 @@ export function CategoryPanel() {
           name: trimmed,
           description: trimmedDescription || null,
           image_url: nextImageUrl || null,
+          parent_id: selectedParentId,
+          level: computedLevel,
           position: maxPosition + 1,
         });
         if (insertError) throw insertError;
@@ -441,6 +536,7 @@ export function CategoryPanel() {
         name: INITIAL_NAME,
         description: INITIAL_DESCRIPTION,
         imageUrl: "",
+        parentCategoryId: "",
       });
       resetForm();
       await loadCategories();
@@ -567,7 +663,7 @@ export function CategoryPanel() {
       setError(null);
       const { data, error: fetchError } = await supabase
         .from("category")
-        .select("id,name,description,image_url,position")
+        .select("id,name,slug,description,image_url,parent_id,level,position")
         .order("position", { ascending: true, nullsFirst: false });
       if (fetchError) throw fetchError;
       const next = (data ?? []) as CategoryItem[];
@@ -651,6 +747,27 @@ export function CategoryPanel() {
                 <p className="mt-1 text-xs text-red-600">{fieldErrors.description}</p>
               ) : null}
             </div>
+          </div>
+
+          <div>
+            <label htmlFor="category-parent" className="mb-1 block text-sm font-medium">
+              Üst Kategori
+            </label>
+            <select
+              id="category-parent"
+              value={parentCategoryId}
+              onChange={(event) => setParentCategoryId(event.target.value)}
+              className="h-11 w-full rounded-xl border border-divider-softLight bg-surface-pageLight px-3 text-sm outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15"
+              disabled={isSaving}
+            >
+              <option value="">Yok / Ana kategori</option>
+              {primaryCategoryOptions.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+            {fieldErrors.parent ? <p className="mt-1 text-xs text-red-600">{fieldErrors.parent}</p> : null}
           </div>
 
           <div className="rounded-2xl border border-divider-softLight bg-slate-50/70 p-4">
@@ -791,19 +908,78 @@ export function CategoryPanel() {
         ) : filteredReorderedItems.length === 0 ? (
           <p className="mt-3 text-sm text-text-secondary">Henüz kategori bulunmuyor.</p>
         ) : (
-          <>
-            <div className="mt-4">
-              <SortableOrderList
-                items={hasActiveFilter ? filteredReorderedItems : reorderedItems}
-                enableDrag={false}
-                showIndexBadge={false}
-                onReorder={(items) => {
-                  if (hasActiveFilter) return;
-                  setReorderedItems(items);
-                }}
-              />
+          <div className="mt-4 space-y-4">
+            {getPrimaryCategories(hierarchyOrderedCategories).map((primary) => {
+              const children = getDirectChildren(hierarchyOrderedCategories, primary.id);
+              const visibleChildren = children.filter((child) => visibleCategoryIds.has(child.id));
+              const showPrimary = visibleCategoryIds.has(primary.id) || visibleChildren.length > 0;
+              if (!showPrimary) return null;
+              return (
+                <div key={primary.id} className="rounded-xl border border-divider-softLight bg-surface-pageLight/70 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-text-primary">{primary.name}</p>
+                      <p className="text-xs text-text-secondary">
+                        Ana kategori · Seviye {primary.level ?? 1}
+                      </p>
+                    </div>
+                    {categoryActionButtons(primary)}
+                  </div>
+                  <div className="mt-3 space-y-2 border-l border-divider-softLight pl-3">
+                    {visibleChildren.length > 0 ? (
+                      visibleChildren.map((child) => {
+                        const grandchildren = getDirectChildren(hierarchyOrderedCategories, child.id).filter((item) =>
+                          visibleCategoryIds.has(item.id),
+                        );
+                        return (
+                          <div key={child.id} className="rounded-lg bg-white p-2">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div>
+                                <p className="text-sm text-text-primary">{child.name}</p>
+                                <p className="text-xs text-text-secondary">
+                                  Alt kategori · Seviye {child.level ?? 2}
+                                </p>
+                              </div>
+                              {categoryActionButtons(child)}
+                            </div>
+                            {grandchildren.length > 0 ? (
+                              <div className="mt-2 space-y-1 border-l border-divider-softLight pl-3">
+                                {grandchildren.map((grandchild) => (
+                                  <div
+                                    key={grandchild.id}
+                                    className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-surface-pageLight px-2 py-1.5"
+                                  >
+                                    <div>
+                                      <p className="text-xs font-medium text-text-primary">{grandchild.name}</p>
+                                      <p className="text-[11px] text-text-secondary">
+                                        Alt kategori · Seviye {grandchild.level ?? 3}
+                                      </p>
+                                    </div>
+                                    {categoryActionButtons(grandchild)}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <p className="text-xs text-text-secondary">Alt kategori yok.</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            {hasActiveFilter && getPrimaryCategories(hierarchyOrderedCategories).every((primary) => {
+              const children = getDirectChildren(hierarchyOrderedCategories, primary.id);
+              return !visibleCategoryIds.has(primary.id) && !children.some((child) => visibleCategoryIds.has(child.id));
+            }) ? (
+              <p className="text-sm text-text-secondary">Filtreyle eşleşen kategori bulunamadı.</p>
+            ) : null}
+            <div className="rounded-lg border border-dashed border-divider-softLight bg-white px-3 py-2 text-xs text-text-secondary">
+              Üçüncü seviye kategoriler, bağlı oldukları üst kategorinin altına otomatik hizalanır.
             </div>
-          </>
+          </div>
         )}
       </section>
 

@@ -4,6 +4,7 @@ import { HeroUnifiedDiscovery } from "@/components/HeroUnifiedDiscovery";
 import { AnimatedStats } from "@/components/hero/AnimatedStats";
 import { OrganizationsPageLink } from "@/components/OrganizationsPageLink";
 import { getCategories } from "@/lib/api/getCategories";
+import { getPrimaryCategories } from "@/lib/categoryHierarchy";
 import { getProjects } from "@/lib/api/getProjects";
 import { getOrganizationCatalog } from "@/lib/organizationsCatalog";
 
@@ -55,18 +56,37 @@ const highlights = [
   },
 ];
 
+function normalizeCategoryKey(value: string) {
+  return value
+    .toLocaleLowerCase("tr-TR")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function resolvePrimaryCategoryImage(slug: string, name: string) {
+  const key = normalizeCategoryKey(`${slug} ${name}`);
+
+  if (key.includes("kurban")) return "/kurban.jpeg";
+  if (key.includes("egitim")) return "/eğitim.png";
+  if (key.includes("saglik")) return "/saglik.png";
+  if (key.includes("su")) return "/su-kuyusu.png";
+  if (key.includes("yetim")) return "/yetim-destek.png";
+  if (key.includes("gida")) return "/gida.png";
+
+  return null;
+}
+
 export default async function HomePage() {
   const [categories, projects, ngos] = await Promise.all([
     getCategories(),
     getProjects(),
     getOrganizationCatalog(),
   ]);
-  const categoryCards = categories.map((category) => ({
+  const primaryCategories = getPrimaryCategories(categories);
+  const categoryCards = primaryCategories.map((category) => ({
     title: category.name,
-    description:
-      category.description?.trim() ||
-      "Bu kategoriye ait bağış seçeneklerini kurumlara göre inceleyin.",
-    imageUrl: category.image_url,
+    description: "Bu kategoriye ait bağış seçeneklerini kurumlara göre inceleyin.",
+    imageUrl: category.image_url ?? resolvePrimaryCategoryImage(category.slug ?? "", category.name),
     href: `/bagislar?kategori=${encodeURIComponent(category.name)}`,
   }));
   return (
