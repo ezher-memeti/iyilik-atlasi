@@ -46,7 +46,7 @@ function getProjectRegions(project: KurbanProjectWithOrganization) {
 }
 
 function getPositivePrice(project: KurbanProjectWithOrganization) {
-  return project.price >= 0 ? project.price : null;
+  return project.price > 0 ? project.price : null;
 }
 
 function clampRangeToBounds(range: PriceBounds, bounds: PriceBounds): PriceBounds {
@@ -144,9 +144,10 @@ function matchesNgo(project: KurbanProjectWithOrganization, ngoFilter: string[])
 }
 
 function matchesPriceRange(project: KurbanProjectWithOrganization, effectivePriceRange: PriceBounds | null) {
+  if (project.price === 0) return true;
   if (!effectivePriceRange) return true;
   const price = getPositivePrice(project);
-  if (price === null) return false;
+  if (price === null) return true;
   return price >= effectivePriceRange.min && price <= effectivePriceRange.max;
 }
 

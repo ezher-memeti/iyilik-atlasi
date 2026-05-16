@@ -116,9 +116,15 @@ export function ProjectCard({
         </div>
 
         <div className="sm:w-[180px] sm:justify-self-end">
-          <p className="text-left text-[26px] font-bold tracking-tight text-emerald-800 sm:text-right sm:text-2xl">
-            {formatPrice(project.price)}
-          </p>
+          {project.price > 0 ? (
+            <p className="text-left text-[26px] font-bold tracking-tight text-emerald-800 sm:text-right sm:text-2xl">
+              {formatPrice(project.price)}
+            </p>
+          ) : (
+            <p className="text-left text-sm font-semibold tracking-tight text-emerald-800 sm:text-right sm:text-base">
+              Bağış tutarı
+            </p>
+          )}
           <div className="mt-2 flex items-center gap-1.5 sm:mt-3 sm:grid sm:grid-cols-1 sm:justify-items-end sm:gap-2">
             <SafeLink
               href={project.donation_url}
