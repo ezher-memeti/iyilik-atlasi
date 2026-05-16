@@ -19,6 +19,24 @@ function createSlug(value: string) {
 }
 
 export async function GET(request: Request) {
+  const maintenanceRaw = process.env.MAINTENANCE_MODE ?? "";
+  const isMaintenanceMode = maintenanceRaw.trim().toLowerCase() === "true";
+
+  if (isMaintenanceMode) {
+    return NextResponse.json(
+      {
+        error: "Servis bakımda. Lütfen daha sonra tekrar deneyin.",
+      },
+      {
+        status: 503,
+        headers: {
+          "Retry-After": "3600",
+          "Cache-Control": "no-store",
+        },
+      },
+    );
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const q = (searchParams.get("q") ?? "").trim();
@@ -117,9 +135,10 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ query: q, results: results.slice(0, 20) });
   } catch (error) {
+    console.error("discovery-search api error", error);
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "Search failed",
+        error: "Arama sırasında bir hata oluştu.",
       },
       { status: 500 },
     );

@@ -1,7 +1,47 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
+const MAINTENANCE_PAGE_PATH = "/bakimdayiz";
+const MAINTENANCE_ALLOWED_API_PATHS = ["/api/auth/callback"];
+
 export async function middleware(request: NextRequest) {
+  const path = request.nextUrl.pathname;
+  const maintenanceRaw = process.env.MAINTENANCE_MODE ?? "";
+  const isMaintenanceMode = maintenanceRaw.trim().toLowerCase() === "true";
+
+  if (isMaintenanceMode) {
+    if (path.startsWith("/api")) {
+      const isAllowedApiPath = MAINTENANCE_ALLOWED_API_PATHS.some(
+        (allowedPath) => path === allowedPath || path.startsWith(`${allowedPath}/`),
+      );
+
+      if (!isAllowedApiPath) {
+        return NextResponse.json(
+          {
+            error: "Servis bakımda. Lütfen daha sonra tekrar deneyin.",
+          },
+          {
+            status: 503,
+            headers: {
+              "Retry-After": "3600",
+              "Cache-Control": "no-store",
+            },
+          },
+        );
+      }
+    }
+
+    const isAllowedPath = path === MAINTENANCE_PAGE_PATH;
+
+    if (!isAllowedPath) {
+      const maintenanceUrl = new URL(MAINTENANCE_PAGE_PATH, request.url);
+      return NextResponse.redirect(maintenanceUrl);
+    }
+  } else if (path === MAINTENANCE_PAGE_PATH) {
+    const homeUrl = new URL("/", request.url);
+    return NextResponse.redirect(homeUrl);
+  }
+
   let response = NextResponse.next({
     request,
   });
@@ -37,8 +77,6 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const path = request.nextUrl.pathname;
-
   if (path.startsWith("/admin") && !user) {
     const loginUrl = new URL("/login", request.url);
     return NextResponse.redirect(loginUrl);
@@ -66,5 +104,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/login"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|logo.png).*)",
+  ],
 };
