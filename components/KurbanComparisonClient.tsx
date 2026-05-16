@@ -1,8 +1,11 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ComparisonTable } from "@/components/ComparisonTable";
 import { ProjectCard } from "@/components/ProjectCard";
+import { MapDiscoveryCard } from "@/components/map/MapDiscoveryCard";
 import common from "@/content/common.json";
 import { formatPrice, type KurbanProjectWithOrganization } from "@/lib/donationModels";
 import {
@@ -11,11 +14,20 @@ import {
   getPrimaryCategories,
   type FlatCategory,
 } from "@/lib/categoryHierarchy";
+import { useMapFilterSync } from "@/hooks/useMapFilterSync";
 
 type KurbanComparisonClientProps = {
   projects: KurbanProjectWithOrganization[];
   categories: FlatCategory[];
-  regions: Array<{ id: number; name: string }>;
+  regions: Array<{
+    id: number;
+    name: string;
+    latitude: number | null;
+    longitude: number | null;
+    map_zoom: number | null;
+    geojson_url?: string | null;
+    geojson?: unknown;
+  }>;
   initialCategory?: string;
   initialRegion?: string;
   initialSearch?: string;
@@ -32,6 +44,9 @@ const DEFAULT_SORT: SortType = "popular";
 const PROJECTS_PER_PAGE = 24;
 const ALL_CATEGORIES_TAB_ID = -1;
 const ALL_CATEGORIES_TAB_LABEL = "Tümü";
+const MapModal = dynamic(() => import("@/components/map/MapModal").then((mod) => mod.MapModal), {
+  ssr: false,
+});
 
 function normalizeText(value: string) {
   return value.toLocaleLowerCase("tr-TR");
@@ -145,6 +160,9 @@ export function KurbanComparisonClient({
   initialSearch,
   initialProjectId,
 }: KurbanComparisonClientProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { applyRegionToUrl } = useMapFilterSync();
   const tabsScrollRef = useRef<HTMLDivElement | null>(null);
   const resultsTopRef = useRef<HTMLDivElement | null>(null);
   const categoryButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -188,6 +206,7 @@ export function KurbanComparisonClient({
   const [showTabArrows, setShowTabArrows] = useState(false);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+  const [isMapOpen, setIsMapOpen] = useState(false);
 
   const categoryTabs = useMemo(
     () =>
@@ -689,6 +708,21 @@ export function KurbanComparisonClient({
     );
   }
 
+  function handleMapDiscoveryOpen() {
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      const params = new URLSearchParams(searchParams.toString());
+      router.push(`/kesfet/harita?${params.toString()}`);
+      return;
+    }
+    setIsMapOpen(true);
+  }
+
+  function handleMapRegionApply(regionName: string) {
+    setRegionFilter([regionName]);
+    setDraftRegionFilter([regionName]);
+    applyRegionToUrl(regionName);
+  }
+
   function toggleNgo(name: string) {
     setNgoFilter((current) =>
       current.includes(name) ? current.filter((item) => item !== name) : [...current, name],
@@ -942,6 +976,9 @@ export function KurbanComparisonClient({
         <aside className="hidden lg:sticky lg:top-40 lg:block lg:self-start">
           <div className="max-h-[calc(100vh-11rem)] space-y-4 overflow-y-auto pr-1">
             <section className="rounded-2xl border border-divider-softLight bg-white p-4">
+              <div className="mb-4">
+                <MapDiscoveryCard onClick={handleMapDiscoveryOpen} />
+              </div>
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-emerald-700">
                 Keşfet
               </p>
@@ -1152,6 +1189,7 @@ export function KurbanComparisonClient({
         </aside>
 
         <div className="space-y-3 sm:space-y-4">
+          <MapDiscoveryCard onClick={handleMapDiscoveryOpen} mobile />
           <div ref={resultsTopRef} />
           {filteredProjects.length === 0 ? (
             <div className="rounded-lg border border-divider-softLight bg-surface-pageLight/70 px-4 py-8 text-center text-sm text-text-secondary">
@@ -1348,6 +1386,17 @@ export function KurbanComparisonClient({
           ) : null}
         </div>
       ) : null}
+
+      <MapModal
+        isOpen={isMapOpen}
+        onClose={() => setIsMapOpen(false)}
+        regions={regions}
+        projects={filteredProjects}
+        selectedRegionNames={regionFilter}
+        onApplyRegion={handleMapRegionApply}
+        onToggleProject={toggleProject}
+        selectedProjectIds={selectedIds}
+      />
 
       {isMobileFilterOpen ? (
         <div className="fixed inset-0 z-50 bg-black/45 lg:hidden" role="dialog" aria-modal="true">
