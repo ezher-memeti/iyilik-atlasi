@@ -30,6 +30,14 @@ localhost:3000
 - `/kurban` all Kurban options and comparison mode
 - `/organizations/[slug]` organization detail page
 
+## Supabase Password Recovery
+
+Supabase Dashboard authentication URL settings must include:
+
+- Production Site URL: `https://YOUR_DOMAIN.com`
+- Production Redirect URL: `https://YOUR_DOMAIN.com/admin/reset-password`
+- Local development Redirect URL: `http://localhost:3000/admin/reset-password`
+
 ## Data
 
 Official Kurban organization and project data is centralized in:

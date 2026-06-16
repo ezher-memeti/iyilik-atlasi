@@ -3,6 +3,11 @@ import { createServerClient } from "@supabase/ssr";
 
 const MAINTENANCE_PAGE_PATH = "/bakimdayiz";
 const MAINTENANCE_ALLOWED_API_PATHS = ["/api/auth/callback"];
+const PUBLIC_ADMIN_AUTH_PATHS = [
+  "/admin/login",
+  "/admin/forgot-password",
+  "/admin/reset-password",
+];
 
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
@@ -77,12 +82,16 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (path.startsWith("/admin") && !user) {
-    const loginUrl = new URL("/login", request.url);
+  const isPublicAdminAuthPath = PUBLIC_ADMIN_AUTH_PATHS.some(
+    (allowedPath) => path === allowedPath || path.startsWith(`${allowedPath}/`),
+  );
+
+  if (path.startsWith("/admin") && !isPublicAdminAuthPath && !user) {
+    const loginUrl = new URL("/admin/login", request.url);
     return NextResponse.redirect(loginUrl);
   }
 
-  if (path.startsWith("/admin") && user) {
+  if (path.startsWith("/admin") && !isPublicAdminAuthPath && user) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("role")

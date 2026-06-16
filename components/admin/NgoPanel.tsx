@@ -20,6 +20,13 @@ type NgoItem = {
 };
 type RegionOption = { id: number; name: string };
 type NgoBolgeRow = { bolge_id: number };
+type NgoFormTab = "summary" | "basic" | "regions";
+
+const NGO_FORM_TABS: Array<{ id: NgoFormTab; label: string }> = [
+  { id: "summary", label: "Kurum Özeti" },
+  { id: "basic", label: "Temel Bilgiler" },
+  { id: "regions", label: "Faaliyet Bölgeleri" },
+];
 
 const INITIAL_FORM = {
   name: "",
@@ -110,6 +117,8 @@ export function NgoPanel() {
   const formSectionRef = useRef<HTMLElement | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [regionFilter, setRegionFilter] = useState("all");
+  const [activeFormTab, setActiveFormTab] = useState<NgoFormTab>("summary");
+  const [regionPickerQuery, setRegionPickerQuery] = useState("");
 
   const [ngos, setNgos] = useState<NgoItem[]>([]);
   const [regions, setRegions] = useState<RegionOption[]>([]);
@@ -186,6 +195,17 @@ export function NgoPanel() {
       initialRegionKey !== currentRegionKey
     );
   }, [description, initialFormState, isVisible, logoUrl, name, selectedRegionIds, websiteUrl]);
+  const selectedRegionsSummary = useMemo(
+    () => regions.filter((region) => selectedRegionIds.includes(region.id)),
+    [regions, selectedRegionIds],
+  );
+  const visibleRegionOptions = useMemo(() => {
+    const query = regionPickerQuery.trim().toLocaleLowerCase("tr-TR");
+    if (!query) return regions;
+    return regions.filter((region) =>
+      region.name.toLocaleLowerCase("tr-TR").includes(query),
+    );
+  }, [regionPickerQuery, regions]);
 
   const filteredReorderedItems = useMemo(() => {
     const query = searchQuery.trim().toLocaleLowerCase("tr-TR");
@@ -607,115 +627,309 @@ export function NgoPanel() {
           </p>
         ) : null}
 
-        <form onSubmit={handleSubmit} className="mt-5 space-y-4">
-          <div>
-            <label htmlFor="ngo-name" className="mb-1 block text-sm font-medium">
-              Ad *
-            </label>
-            <input
-              id="ngo-name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              className="h-10 w-full rounded-md border border-divider-softLight bg-white px-3 text-sm outline-none transition focus:border-brand-primary"
-              placeholder="Kurum adı"
-              disabled={isSaving}
-            />
-            {fieldErrors.name ? <p className="mt-1 text-xs text-red-600">{fieldErrors.name}</p> : null}
-          </div>
+        <form onSubmit={handleSubmit} className="mt-6">
+          <div className="overflow-hidden rounded-2xl border border-divider-softLight bg-white shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
+            <div className="border-b border-divider-softLight bg-surface-pageLight/70 px-4 pt-3">
+              <div className="flex gap-2 overflow-x-auto">
+                {NGO_FORM_TABS.map((tab) => {
+                  const isActive = activeFormTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setActiveFormTab(tab.id)}
+                      className={`relative min-h-11 shrink-0 rounded-t-xl px-4 text-sm font-semibold transition ${
+                        isActive
+                          ? "bg-white text-brand-primary shadow-sm"
+                          : "text-text-secondary hover:bg-white/70 hover:text-text-primary"
+                      }`}
+                    >
+                      {tab.label}
+                      {isActive ? (
+                        <span className="absolute inset-x-4 bottom-0 h-0.5 rounded-full bg-brand-primary" />
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-          <div>
-            <label htmlFor="ngo-description" className="mb-1 block text-sm font-medium">
-              Açıklama
-            </label>
-            <textarea
-              id="ngo-description"
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              className="min-h-24 w-full rounded-md border border-divider-softLight bg-white px-3 py-2 text-sm outline-none transition focus:border-brand-primary"
-              placeholder="Kısa kurum açıklaması"
-              disabled={isSaving}
-            />
-            {fieldErrors.description ? (
-              <p className="mt-1 text-xs text-red-600">{fieldErrors.description}</p>
-            ) : null}
-          </div>
+            <div className="min-h-[380px] p-5">
+              {activeFormTab === "summary" ? (
+                <section className="rounded-2xl border border-divider-softLight bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.04)]">
+                  <div className="mb-5">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-primary">
+                      Kurum Özeti
+                    </p>
+                    <h3 className="mt-1 text-lg font-semibold text-text-primary">
+                      Kurum kaydı önizlemesi
+                    </h3>
+                    <p className="mt-1 text-sm text-text-secondary">
+                      Kurumun temel durumunu ve görünürlüğünü tek ekranda kontrol edin.
+                    </p>
+                  </div>
 
-          <div>
-            <label htmlFor="ngo-website" className="mb-1 block text-sm font-medium">
-              Web Sitesi URL
-            </label>
-            <input
-              id="ngo-website"
-              type="url"
-              value={websiteUrl}
-              onChange={(event) => setWebsiteUrl(event.target.value)}
-              className="h-10 w-full rounded-md border border-divider-softLight bg-white px-3 text-sm outline-none transition focus:border-brand-primary"
-              placeholder="https://example.org"
-              disabled={isSaving}
-            />
-            {fieldErrors.websiteUrl ? (
-              <p className="mt-1 text-xs text-red-600">{fieldErrors.websiteUrl}</p>
-            ) : null}
-          </div>
+                  <div className="space-y-6">
+                    <dl className="divide-y divide-divider-softLight rounded-2xl bg-surface-pageLight px-4">
+                      <div className="grid gap-1 py-4 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-6">
+                        <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
+                          Kurum adı
+                        </dt>
+                        <dd className="text-base font-semibold leading-6 text-text-primary">
+                          {name.trim() || "Henüz kurum adı girilmedi"}
+                        </dd>
+                      </div>
+                      <div className="grid gap-1 py-4 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-6">
+                        <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
+                          Web sitesi
+                        </dt>
+                        <dd className="break-words text-base font-semibold leading-6 text-text-primary">
+                          {websiteUrl.trim() || "Opsiyonel"}
+                        </dd>
+                      </div>
+                      <div className="grid gap-1 py-4 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-6">
+                        <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
+                          Faaliyet bölgeleri
+                        </dt>
+                        <dd className="text-base font-semibold leading-6 text-text-primary">
+                          {selectedRegionsSummary.length
+                            ? `${selectedRegionsSummary.length} bölge seçildi`
+                            : "Henüz bölge seçilmedi"}
+                        </dd>
+                      </div>
+                      <div className="grid gap-1 py-4 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-6">
+                        <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
+                          Durum
+                        </dt>
+                        <dd className={`text-base font-semibold leading-6 ${isVisible ? "text-green-700" : "text-slate-600"}`}>
+                          {isVisible ? "Görünür" : "Gizli"}
+                        </dd>
+                      </div>
+                    </dl>
 
-          <label className="flex items-start justify-between gap-4 rounded-lg border border-divider-softLight bg-white px-4 py-3">
-            <span>
-              <span className="block text-sm font-medium text-text-primary">
-                Kurum görünür olsun
-              </span>
-              <span className="mt-1 block text-xs leading-5 text-text-secondary">
-                Bu kurum kullanıcı tarafında gösterilsin. Kapatıldığında kurum ve kuruma bağlı projeler kullanıcı tarafında görünmez.
-              </span>
-            </span>
-            <input
-              type="checkbox"
-              role="switch"
-              checked={isVisible}
-              onChange={(event) => setIsVisible(event.target.checked)}
-              disabled={isSaving}
-              className="mt-1 h-5 w-5 shrink-0 accent-brand-primary"
-            />
-          </label>
+                    <div className="grid gap-6 border-t border-divider-softLight pt-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+                      <div>
+                        <h4 className="text-sm font-semibold text-text-primary">Tamamlanma Durumu</h4>
+                        <ul className="mt-3 space-y-2 text-sm leading-6">
+                          <li className={name.trim() ? "text-green-700" : "text-text-secondary"}>
+                            {name.trim() ? "✓" : "•"} Kurum adı {name.trim() ? "tamamlandı" : "eksik"}
+                          </li>
+                          <li className="text-text-secondary">• Web sitesi opsiyonel</li>
+                          <li className={selectedRegionsSummary.length ? "text-green-700" : "text-text-secondary"}>
+                            {selectedRegionsSummary.length ? "✓" : "•"} Faaliyet bölgesi {selectedRegionsSummary.length ? "seçildi" : "önerilir"}
+                          </li>
+                        </ul>
+                      </div>
 
-          <div>
-            <label htmlFor="ngo-logo-url" className="mb-1 block text-sm font-medium">
-              Logo URL
-            </label>
-            <input
-              id="ngo-logo-url"
-              type="text"
-              value={logoUrl}
-              onChange={(event) => setLogoUrl(event.target.value)}
-              className="h-10 w-full rounded-md border border-divider-softLight bg-white px-3 text-sm outline-none transition focus:border-brand-primary"
-              placeholder="https://example.com/logo.png"
-              disabled={isSaving}
-            />
-            {fieldErrors.logoUrl ? (
-              <p className="mt-1 text-xs text-red-600">{fieldErrors.logoUrl}</p>
-            ) : null}
-          </div>
+                      <label className="flex items-center justify-between gap-4 rounded-2xl bg-surface-pageLight px-4 py-4">
+                        <span>
+                          <span className="block text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
+                            Yayın Durumu
+                          </span>
+                          <span className="mt-1 block text-sm font-semibold text-text-primary">
+                            Kurum kullanıcı tarafında görünsün
+                          </span>
+                          <span className="mt-1 block text-xs leading-5 text-text-secondary">
+                            Kapatıldığında kurum ve kuruma bağlı projeler kullanıcı tarafında görünmez.
+                          </span>
+                          <span className={`mt-2 inline-flex text-xs font-semibold ${isVisible ? "text-green-700" : "text-slate-600"}`}>
+                            {isVisible ? "Görünür" : "Gizli"}
+                          </span>
+                        </span>
+                        <span className="relative inline-flex h-7 w-12 shrink-0 items-center">
+                          <input
+                            type="checkbox"
+                            role="switch"
+                            checked={isVisible}
+                            onChange={(event) => setIsVisible(event.target.checked)}
+                            disabled={isSaving}
+                            className="peer sr-only"
+                          />
+                          <span className="absolute inset-0 rounded-full bg-slate-200 transition peer-checked:bg-brand-primary peer-focus-visible:ring-4 peer-focus-visible:ring-brand-primary/15 peer-disabled:opacity-60" />
+                          <span className="absolute left-1 h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5" />
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                </section>
+              ) : null}
 
-          <fieldset>
-            <legend className="mb-1 text-sm font-medium">Faaliyet Bölgeleri</legend>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {regions.map((region) => (
-                <label
-                  key={region.id}
-                  className="inline-flex items-center gap-2 rounded-md border border-divider-softLight bg-surface-pageLight px-3 py-2 text-sm"
-                >
+              {activeFormTab === "basic" ? (
+                <section className="rounded-2xl border border-divider-softLight bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.04)]">
+                  <div className="mb-5">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-primary">
+                      Temel Bilgiler
+                    </p>
+                    <h3 className="mt-1 text-lg font-semibold text-text-primary">
+                      Kurum bilgileri
+                    </h3>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label htmlFor="ngo-name" className="mb-1.5 block text-sm font-semibold text-text-primary">
+                        Ad *
+                      </label>
+                      <input
+                        id="ngo-name"
+                        value={name}
+                        onChange={(event) => setName(event.target.value)}
+                        className="h-12 w-full rounded-xl border border-divider-softLight bg-surface-pageLight px-4 text-sm outline-none transition focus:border-brand-primary focus:bg-white focus:ring-4 focus:ring-brand-primary/10"
+                        placeholder="Kurum adı"
+                        disabled={isSaving}
+                      />
+                      {fieldErrors.name ? <p className="mt-1.5 text-xs text-red-600">{fieldErrors.name}</p> : null}
+                    </div>
+
+                    <div>
+                      <label htmlFor="ngo-description" className="mb-1.5 block text-sm font-semibold text-text-primary">
+                        Açıklama
+                      </label>
+                      <textarea
+                        id="ngo-description"
+                        value={description}
+                        onChange={(event) => setDescription(event.target.value)}
+                        className="min-h-28 w-full rounded-xl border border-divider-softLight bg-surface-pageLight px-4 py-3 text-sm outline-none transition focus:border-brand-primary focus:bg-white focus:ring-4 focus:ring-brand-primary/10"
+                        placeholder="Kısa kurum açıklaması"
+                        disabled={isSaving}
+                      />
+                      {fieldErrors.description ? (
+                        <p className="mt-1.5 text-xs text-red-600">{fieldErrors.description}</p>
+                      ) : null}
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div>
+                        <label htmlFor="ngo-website" className="mb-1.5 block text-sm font-semibold text-text-primary">
+                          Web Sitesi URL
+                        </label>
+                        <input
+                          id="ngo-website"
+                          type="url"
+                          value={websiteUrl}
+                          onChange={(event) => setWebsiteUrl(event.target.value)}
+                          className="h-12 w-full rounded-xl border border-divider-softLight bg-surface-pageLight px-4 text-sm outline-none transition focus:border-brand-primary focus:bg-white focus:ring-4 focus:ring-brand-primary/10"
+                          placeholder="https://example.org"
+                          disabled={isSaving}
+                        />
+                        {fieldErrors.websiteUrl ? (
+                          <p className="mt-1.5 text-xs text-red-600">{fieldErrors.websiteUrl}</p>
+                        ) : null}
+                      </div>
+
+                      <div>
+                        <label htmlFor="ngo-logo-url" className="mb-1.5 block text-sm font-semibold text-text-primary">
+                          Logo URL
+                        </label>
+                        <input
+                          id="ngo-logo-url"
+                          type="text"
+                          value={logoUrl}
+                          onChange={(event) => setLogoUrl(event.target.value)}
+                          className="h-12 w-full rounded-xl border border-divider-softLight bg-surface-pageLight px-4 text-sm outline-none transition focus:border-brand-primary focus:bg-white focus:ring-4 focus:ring-brand-primary/10"
+                          placeholder="https://example.com/logo.png"
+                          disabled={isSaving}
+                        />
+                        {fieldErrors.logoUrl ? (
+                          <p className="mt-1.5 text-xs text-red-600">{fieldErrors.logoUrl}</p>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              ) : null}
+
+              {activeFormTab === "regions" ? (
+                <section className="rounded-2xl border border-divider-softLight bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.04)]">
+                  <div className="mb-5">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-primary">
+                      Faaliyet Bölgeleri
+                    </p>
+                    <h3 className="mt-1 text-lg font-semibold text-text-primary">
+                      Kurumun faaliyet gösterdiği bölgeler
+                    </h3>
+                    <p className="mt-1 text-sm text-text-secondary">
+                      Bölge arayın, seçin veya seçili çiplerden kaldırın.
+                    </p>
+                  </div>
+
+                  <label htmlFor="ngo-region-search" className="mb-1.5 block text-sm font-semibold text-text-primary">
+                    Bölge ara...
+                  </label>
                   <input
-                    type="checkbox"
-                    checked={selectedRegionIds.includes(region.id)}
-                    onChange={() => toggleRegion(region.id)}
+                    id="ngo-region-search"
+                    type="search"
+                    value={regionPickerQuery}
+                    onChange={(event) => setRegionPickerQuery(event.target.value)}
+                    placeholder="Gazze, Türkiye, Afrika..."
+                    className="h-12 w-full rounded-xl border border-divider-softLight bg-surface-pageLight px-4 text-sm outline-none transition focus:border-brand-primary focus:bg-white focus:ring-4 focus:ring-brand-primary/10"
                     disabled={isSaving}
                   />
-                  {region.name}
-                </label>
-              ))}
-            </div>
-          </fieldset>
 
-          <div className="sticky bottom-0 z-10 -mx-4 flex flex-col gap-2 border-t border-divider-softLight bg-surface-pageLight px-4 py-3 sm:mx-0 sm:flex-row sm:items-center sm:border-t-0 sm:bg-transparent sm:px-0 sm:py-0">
+                  <div className="mt-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">
+                      Seçilen Bölgeler
+                    </p>
+                    {selectedRegionsSummary.length ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {selectedRegionsSummary.map((region) => (
+                          <button
+                            key={region.id}
+                            type="button"
+                            onClick={() => toggleRegion(region.id)}
+                            disabled={isSaving}
+                            className="inline-flex min-h-9 items-center gap-2 rounded-full bg-brand-primary/10 px-3 py-1 text-xs font-semibold text-brand-primary transition hover:bg-brand-primary/15 disabled:opacity-70"
+                            aria-label={`${region.name} bölgesini kaldır`}
+                          >
+                            {region.name}
+                            <span className="text-sm leading-none">×</span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-sm text-text-secondary">Henüz bölge seçilmedi.</p>
+                    )}
+                  </div>
+
+                  <div className="mt-4 max-h-[360px] overflow-y-auto rounded-2xl border border-divider-softLight bg-surface-pageLight p-2 overscroll-contain sm:max-h-[420px]">
+                    {visibleRegionOptions.length ? (
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {visibleRegionOptions.map((region) => {
+                          const regionChecked = selectedRegionIds.includes(region.id);
+                          return (
+                            <label
+                              key={region.id}
+                              className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-xl bg-white px-3 py-2 text-sm font-medium transition hover:bg-brand-primary/5 ${
+                                regionChecked ? "text-brand-primary ring-1 ring-brand-primary/20" : "text-text-primary"
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={regionChecked}
+                                onChange={() => toggleRegion(region.id)}
+                                disabled={isSaving}
+                                className="h-4 w-4 rounded border-divider-softLight text-brand-primary focus:ring-brand-primary"
+                              />
+                              <span className="min-w-0 flex-1">{region.name}</span>
+                              {regionChecked ? (
+                                <span className="text-xs font-semibold text-brand-primary">Seçili</span>
+                              ) : null}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="px-3 py-4 text-sm text-text-secondary">
+                        Eşleşen bölge bulunamadı.
+                      </p>
+                    )}
+                  </div>
+                </section>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="sticky bottom-0 z-10 -mx-4 mt-5 flex flex-col gap-2 border-t border-divider-softLight bg-surface-pageLight/95 px-4 py-3 backdrop-blur sm:mx-0 sm:flex-row sm:items-center sm:rounded-2xl sm:border sm:bg-white sm:px-4 sm:shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
             <button
               type="submit"
               disabled={isSaving}

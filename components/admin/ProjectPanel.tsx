@@ -11,7 +11,6 @@ import {
   buildExpandedCategoryIds,
   getDescendantCategoryIds,
   getDirectChildren,
-  getPrimaryCategories,
   sortCategories,
   type FlatCategory,
 } from "@/lib/categoryHierarchy";
@@ -175,6 +174,8 @@ export function ProjectPanel() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [regionFilter, setRegionFilter] = useState("all");
   const [regionPickerQuery, setRegionPickerQuery] = useState("");
+  const [categoryPickerQuery, setCategoryPickerQuery] = useState("");
+  const [expandedCategoryIds, setExpandedCategoryIds] = useState<number[]>([]);
   const [activeFormTab, setActiveFormTab] = useState<ProjectFormTab>("summary");
 
   const [ngos, setNgos] = useState<NgoOption[]>([]);
@@ -277,11 +278,35 @@ export function ProjectPanel() {
     title,
   ]);
   const sortedCategories = useMemo(() => sortCategories(categories), [categories]);
-  const primaryCategories = useMemo(() => getPrimaryCategories(sortedCategories), [sortedCategories]);
   const effectiveSelectedCategoryIds = useMemo(
     () => buildExpandedCategoryIds(sortedCategories, selectedCategoryIds),
     [selectedCategoryIds, sortedCategories],
   );
+  const visibleCategoryTree = useMemo(() => {
+    const query = categoryPickerQuery.trim().toLocaleLowerCase("tr-TR");
+    const parentCategories = sortedCategories.filter((category) => category.parent_id === null);
+
+    return parentCategories
+      .map((parent) => {
+        const children = getDirectChildren(sortedCategories, parent.id);
+        if (!query) return { parent, children };
+
+        const parentMatches = parent.name.toLocaleLowerCase("tr-TR").includes(query);
+        const matchingChildren = children.filter((child) =>
+          child.name.toLocaleLowerCase("tr-TR").includes(query),
+        );
+
+        if (!parentMatches && matchingChildren.length === 0) return null;
+        return {
+          parent,
+          children: parentMatches ? children : matchingChildren,
+        };
+      })
+      .filter((item): item is { parent: FlatCategory; children: FlatCategory[] } =>
+        Boolean(item),
+      );
+  }, [categoryPickerQuery, sortedCategories]);
+  const categorySearchIsActive = categoryPickerQuery.trim().length > 0;
   const selectedCategoriesSummary = useMemo(
     () =>
       sortedCategories.filter((category) => effectiveSelectedCategoryIds.includes(category.id)),
@@ -295,16 +320,6 @@ export function ProjectPanel() {
     () => ngos.find((ngo) => String(ngo.id) === ngoId)?.name ?? "Seçilmedi",
     [ngoId, ngos],
   );
-  const regionPickerResults = useMemo(() => {
-    const query = regionPickerQuery.trim().toLocaleLowerCase("tr-TR");
-    const selected = new Set(selectedRegionIds);
-    return regions
-      .filter((region) => {
-        const matchesQuery = !query || region.name.toLocaleLowerCase("tr-TR").includes(query);
-        return matchesQuery && !selected.has(region.id);
-      })
-      .slice(0, 8);
-  }, [regionPickerQuery, regions, selectedRegionIds]);
   const missingRequiredFields = useMemo(() => {
     const missing: string[] = [];
     if (!title.trim()) missing.push("Proje başlığı");
@@ -466,15 +481,25 @@ export function ProjectPanel() {
   }
 
   function toggleCategory(id: number) {
-    setSelectedCategoryIds((current) =>
-      current.includes(id) ? current.filter((value) => value !== id) : [...current, id],
-    );
+    const category = sortedCategories.find((item) => item.id === id);
+    setSelectedCategoryIds((current) => {
+      const selected = new Set(current);
+      if (selected.has(id)) {
+        selected.delete(id);
+        return Array.from(selected);
+      }
+
+      selected.add(id);
+      if (category?.parent_id !== null && category?.parent_id !== undefined) {
+        selected.add(category.parent_id);
+      }
+      return Array.from(selected);
+    });
   }
 
   function togglePrimaryCategoryGroup(primaryId: number) {
-    const descendants = getDescendantCategoryIds(sortedCategories, primaryId);
-    const groupIds = new Set(descendants);
-    const currentlySelected = effectiveSelectedCategoryIds.includes(primaryId);
+    const groupIds = getDescendantCategoryIds(sortedCategories, primaryId);
+    const currentlySelected = selectedCategoryIds.includes(primaryId);
 
     setSelectedCategoryIds((current) => {
       if (currentlySelected) {
@@ -482,6 +507,14 @@ export function ProjectPanel() {
       }
       return Array.from(new Set([...current, primaryId]));
     });
+  }
+
+  function toggleCategoryExpansion(categoryId: number) {
+    setExpandedCategoryIds((current) =>
+      current.includes(categoryId)
+        ? current.filter((id) => id !== categoryId)
+        : [...current, categoryId],
+    );
   }
 
   function toggleRegion(id: number) {
@@ -1198,101 +1231,123 @@ export function ProjectPanel() {
                       2. Kategoriler
                     </p>
                     <h3 className="mt-1 text-lg font-semibold text-text-primary">
-                      Ana kategori seç, sonra detaylandır
+                      Kategori ağacından seçim yap
                     </h3>
                     <p className="mt-1 text-sm text-text-secondary">
-                      Alt kategoriler yalnızca ilgili ana kategori seçildiğinde görünür.
+                      Ana kategoriler ve alt kategoriler tek listede görünür. Alt kategori seçildiğinde üst kategori otomatik seçilir.
                     </p>
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                    {primaryCategories.map((primary) => {
-                      const children = getDirectChildren(sortedCategories, primary.id);
-                      const primaryChecked = effectiveSelectedCategoryIds.includes(primary.id);
-                      return (
-                        <button
-                          key={primary.id}
-                          type="button"
-                          onClick={() => togglePrimaryCategoryGroup(primary.id)}
-                          disabled={isSaving}
-                          className={`group flex min-h-24 flex-col items-start justify-between rounded-2xl border p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-70 ${primaryChecked
-                            ? "border-brand-primary/45 bg-brand-primary/10 ring-2 ring-brand-primary/10"
-                            : "border-divider-softLight bg-surface-pageLight hover:border-brand-primary/25 hover:bg-white"
-                            }`}
-                        >
-                          <span className="flex w-full items-start justify-between gap-3">
-                            <span className="text-sm font-semibold text-text-primary">{primary.name}</span>
-                            <span
-                              className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold transition ${primaryChecked
-                                ? "bg-brand-primary text-white"
-                                : "bg-white text-text-secondary ring-1 ring-divider-softLight group-hover:text-brand-primary"
-                                }`}
-                            >
-                              {primaryChecked ? "✓" : "+"}
-                            </span>
-                          </span>
-                          <span className="mt-3 text-xs text-text-secondary">
-                            {children.length ? `${children.length} alt kategori` : "Alt kategori yok"}
-                          </span>
-                        </button>
-                      );
-                    })}
+                  <div>
+                    <label htmlFor="project-category-search" className="mb-1.5 block text-sm font-semibold text-text-primary">
+                      Kategori ara...
+                    </label>
+                    <input
+                      id="project-category-search"
+                      type="search"
+                      value={categoryPickerQuery}
+                      onChange={(event) => setCategoryPickerQuery(event.target.value)}
+                      placeholder="Kategori veya alt kategori ara..."
+                      className="h-12 w-full rounded-xl border border-divider-softLight bg-surface-pageLight px-4 text-sm outline-none transition focus:border-brand-primary focus:bg-white focus:ring-4 focus:ring-brand-primary/10"
+                      disabled={isSaving}
+                    />
                   </div>
 
-                  <div className="mt-5 space-y-3">
-                    {primaryCategories.map((primary) => {
-                      const children = getDirectChildren(sortedCategories, primary.id);
-                      const primaryChecked = effectiveSelectedCategoryIds.includes(primary.id);
-                      if (!primaryChecked || children.length === 0) return null;
-                      return (
-                        <div key={primary.id} className="rounded-2xl border border-divider-softLight bg-surface-pageLight/70 p-4">
-                          <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
-                            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-brand-primary text-xs text-white">
-                              ✓
-                            </span>
-                            {primary.name}
-                          </div>
-                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                            {children.map((child) => {
-                              const childChecked = selectedCategoryIds.includes(child.id);
-                              return (
-                                <label
-                                  key={child.id}
-                                  className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border px-3 py-2 text-sm transition ${childChecked
-                                    ? "border-brand-primary/35 bg-white text-text-primary ring-2 ring-brand-primary/10"
-                                    : "border-transparent bg-white/70 text-text-secondary hover:bg-white"
-                                    }`}
-                                >
+                  <div className="mt-5 max-h-[420px] overflow-y-auto rounded-2xl border border-divider-softLight bg-surface-pageLight overscroll-contain sm:max-h-[460px]">
+                    {visibleCategoryTree.length ? (
+                      <div className="divide-y divide-divider-softLight">
+                        {visibleCategoryTree.map(({ parent, children }) => {
+                          const parentChecked = selectedCategoryIds.includes(parent.id);
+                          const isExpanded = categorySearchIsActive || expandedCategoryIds.includes(parent.id);
+                          return (
+                            <div key={parent.id} className="bg-white">
+                              <div className="flex min-h-12 items-center gap-3 px-4 py-3 transition hover:bg-surface-categoryLight">
+                                <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3">
                                   <input
                                     type="checkbox"
-                                    checked={childChecked}
-                                    onChange={() => toggleCategory(child.id)}
+                                    checked={parentChecked}
+                                    onChange={() => togglePrimaryCategoryGroup(parent.id)}
                                     disabled={isSaving}
                                     className="h-4 w-4 rounded border-divider-softLight text-brand-primary focus:ring-brand-primary"
                                   />
-                                  {child.name}
+                                  <span className="min-w-0 flex-1 text-sm font-semibold text-text-primary">
+                                    {parent.name}
+                                  </span>
                                 </label>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
+                                <span className="hidden text-xs text-text-secondary sm:inline">
+                                  {children.length ? `${children.length} alt kategori` : "Alt kategori yok"}
+                                </span>
+                                {children.length ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleCategoryExpansion(parent.id)}
+                                    disabled={isSaving}
+                                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-divider-softLight bg-surface-pageLight text-sm font-semibold text-text-secondary transition hover:bg-white hover:text-text-primary disabled:opacity-60"
+                                    aria-expanded={isExpanded}
+                                    aria-label={`${parent.name} alt kategorilerini ${isExpanded ? "kapat" : "aç"}`}
+                                  >
+                                    <span className={`transition-transform ${isExpanded ? "rotate-180" : ""}`}>
+                                      ⌄
+                                    </span>
+                                  </button>
+                                ) : null}
+                              </div>
+
+                              {children.length && isExpanded ? (
+                                <div className="border-t border-divider-softLight bg-surface-pageLight/70 py-1">
+                                  {children.map((child) => {
+                                    const childChecked = selectedCategoryIds.includes(child.id);
+                                    return (
+                                      <label
+                                        key={child.id}
+                                        className="ml-6 flex min-h-11 cursor-pointer items-center gap-3 border-l border-divider-softLight px-4 py-2 transition hover:bg-white"
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={childChecked}
+                                          onChange={() => toggleCategory(child.id)}
+                                          disabled={isSaving}
+                                          className="h-4 w-4 rounded border-divider-softLight text-brand-primary focus:ring-brand-primary"
+                                        />
+                                        <span className="text-sm text-text-primary">{child.name}</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="px-4 py-6 text-sm text-text-secondary">
+                        Aramanızla eşleşen kategori bulunamadı.
+                      </p>
+                    )}
                   </div>
 
-                  <div className="mt-5 rounded-2xl border border-divider-softLight bg-surface-pageLight p-4">
+                  <div className="mt-5">
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">
                       Seçilen Kategoriler
                     </p>
                     {selectedCategoriesSummary.length ? (
                       <div className="mt-3 flex flex-wrap gap-2">
                         {selectedCategoriesSummary.map((category) => (
-                          <span
+                          <button
                             key={category.id}
-                            className="inline-flex items-center gap-1 rounded-full bg-brand-primary/10 px-3 py-1 text-xs font-semibold text-brand-primary"
+                            type="button"
+                            onClick={() =>
+                              category.parent_id === null
+                                ? togglePrimaryCategoryGroup(category.id)
+                                : toggleCategory(category.id)
+                            }
+                            disabled={isSaving}
+                            className="inline-flex min-h-8 items-center gap-1.5 rounded-full bg-brand-primary/10 px-3 py-1 text-xs font-semibold text-brand-primary transition hover:bg-brand-primary/15 disabled:opacity-70"
+                            aria-label={`${category.name} kategorisini kaldır`}
                           >
-                            ✓ {category.name}
-                          </span>
+                            {category.name}
+                            <span className="text-sm leading-none">×</span>
+                          </button>
                         ))}
                       </div>
                     ) : (
@@ -1358,25 +1413,49 @@ export function ProjectPanel() {
                     )}
                   </div>
 
-                  <div className="mt-4 rounded-2xl border border-divider-softLight bg-surface-pageLight p-2">
-                    {regionPickerResults.length ? (
+                  <div className="mt-4 max-h-[360px] overflow-y-auto rounded-2xl border border-divider-softLight bg-surface-pageLight p-2 overscroll-contain sm:max-h-[420px]">
+                    {(regionPickerQuery.trim()
+                      ? regions.filter((region) =>
+                        region.name
+                          .toLocaleLowerCase("tr-TR")
+                          .includes(regionPickerQuery.trim().toLocaleLowerCase("tr-TR")),
+                      )
+                      : regions
+                    ).length ? (
                       <div className="grid gap-2 sm:grid-cols-2">
-                        {regionPickerResults.map((region) => (
-                          <button
-                            key={region.id}
-                            type="button"
-                            onClick={() => toggleRegion(region.id)}
-                            disabled={isSaving}
-                            className="flex min-h-11 items-center justify-between rounded-xl bg-white px-3 py-2 text-left text-sm font-medium text-text-primary transition hover:bg-brand-primary/5 disabled:opacity-70"
-                          >
-                            <span>{region.name}</span>
-                            <span className="text-xs font-semibold text-brand-primary">Ekle</span>
-                          </button>
-                        ))}
+                        {(regionPickerQuery.trim()
+                          ? regions.filter((region) =>
+                            region.name
+                              .toLocaleLowerCase("tr-TR")
+                              .includes(regionPickerQuery.trim().toLocaleLowerCase("tr-TR")),
+                          )
+                          : regions
+                        ).map((region) => {
+                          const regionChecked = selectedRegionIds.includes(region.id);
+                          return (
+                            <label
+                              key={region.id}
+                              className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-xl bg-white px-3 py-2 text-sm font-medium transition hover:bg-brand-primary/5 ${regionChecked ? "text-brand-primary ring-1 ring-brand-primary/20" : "text-text-primary"
+                                }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={regionChecked}
+                                onChange={() => toggleRegion(region.id)}
+                                disabled={isSaving}
+                                className="h-4 w-4 rounded border-divider-softLight text-brand-primary focus:ring-brand-primary"
+                              />
+                              <span className="min-w-0 flex-1">{region.name}</span>
+                              {regionChecked ? (
+                                <span className="text-xs font-semibold text-brand-primary">Seçili</span>
+                              ) : null}
+                            </label>
+                          );
+                        })}
                       </div>
                     ) : (
                       <p className="px-3 py-4 text-sm text-text-secondary">
-                        Eşleşen veya eklenebilir bölge bulunamadı.
+                        Eşleşen bölge bulunamadı.
                       </p>
                     )}
                   </div>
