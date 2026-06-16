@@ -43,27 +43,36 @@ type ProjectRow = {
   is_visible: boolean | null;
   ngo_id: number;
   project_bolge:
-    | Array<{
-        bolge:
-          | { id: number; name: string; is_visible: boolean | null }
-          | { id: number; name: string; is_visible: boolean | null }[]
-          | null;
-      }>
+  | Array<{
+    bolge:
+    | { id: number; name: string; is_visible: boolean | null }
+    | { id: number; name: string; is_visible: boolean | null }[]
     | null;
+  }>
+  | null;
   position: number | null;
   ngo:
-    | { name: string; is_visible: boolean | null }
-    | { name: string; is_visible: boolean | null }[]
-    | null;
+  | { name: string; is_visible: boolean | null }
+  | { name: string; is_visible: boolean | null }[]
+  | null;
   project_categories:
-    | Array<{
-        category:
-          | { id: number; name: string; parent_id: number | null; is_visible: boolean | null }
-          | { id: number; name: string; parent_id: number | null; is_visible: boolean | null }[]
-          | null;
-      }>
+  | Array<{
+    category:
+    | { id: number; name: string; parent_id: number | null; is_visible: boolean | null }
+    | { id: number; name: string; parent_id: number | null; is_visible: boolean | null }[]
     | null;
+  }>
+  | null;
 };
+
+type ProjectFormTab = "summary" | "basic" | "categories" | "regions";
+
+const PROJECT_FORM_TABS: Array<{ id: ProjectFormTab; label: string }> = [
+  { id: "summary", label: "Proje Özeti" },
+  { id: "basic", label: "Temel Bilgiler" },
+  { id: "categories", label: "Kategoriler" },
+  { id: "regions", label: "Bölgeler" },
+];
 
 const INITIAL_FORM = {
   title: "",
@@ -108,11 +117,10 @@ function mapProjectToSortableItem(
     status: (
       <span className="inline-flex flex-wrap items-center gap-1.5">
         <span
-          className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
-            project.is_visible
-              ? "bg-green-50 text-green-700 ring-1 ring-green-200"
-              : "bg-slate-100 text-slate-600 ring-1 ring-slate-200"
-          }`}
+          className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${project.is_visible
+            ? "bg-green-50 text-green-700 ring-1 ring-green-200"
+            : "bg-slate-100 text-slate-600 ring-1 ring-slate-200"
+            }`}
         >
           {project.is_visible ? "Görünür" : "Gizli"}
         </span>
@@ -134,9 +142,8 @@ function mapProjectToSortableItem(
       </span>
     ),
     meta: `Kurum: ${project.ngo?.name ?? "Bilinmiyor"}`,
-    secondary: `Kurum: ${project.ngo?.name ?? "Bilinmiyor"} · Bölge: ${
-      project.regions.length ? project.regions.map((region) => region.name).join(", ") : "Belirtilmedi"
-    } · Alt kategoriler: ${secondaryCategoryLabel} · Tutar: ${project.price ?? 0}`,
+    secondary: `Kurum: ${project.ngo?.name ?? "Bilinmiyor"} · Bölge: ${project.regions.length ? project.regions.map((region) => region.name).join(", ") : "Belirtilmedi"
+      } · Alt kategoriler: ${secondaryCategoryLabel} · Tutar: ${project.price ?? 0}`,
     link: project.donation_url,
     isHighlighted: editingProjectId === project.id,
     actions: withActions ? (
@@ -167,6 +174,8 @@ export function ProjectPanel() {
   const [ngoFilter, setNgoFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [regionFilter, setRegionFilter] = useState("all");
+  const [regionPickerQuery, setRegionPickerQuery] = useState("");
+  const [activeFormTab, setActiveFormTab] = useState<ProjectFormTab>("summary");
 
   const [ngos, setNgos] = useState<NgoOption[]>([]);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
@@ -273,6 +282,38 @@ export function ProjectPanel() {
     () => buildExpandedCategoryIds(sortedCategories, selectedCategoryIds),
     [selectedCategoryIds, sortedCategories],
   );
+  const selectedCategoriesSummary = useMemo(
+    () =>
+      sortedCategories.filter((category) => effectiveSelectedCategoryIds.includes(category.id)),
+    [effectiveSelectedCategoryIds, sortedCategories],
+  );
+  const selectedRegionsSummary = useMemo(
+    () => regions.filter((region) => selectedRegionIds.includes(region.id)),
+    [regions, selectedRegionIds],
+  );
+  const selectedNgoName = useMemo(
+    () => ngos.find((ngo) => String(ngo.id) === ngoId)?.name ?? "Seçilmedi",
+    [ngoId, ngos],
+  );
+  const regionPickerResults = useMemo(() => {
+    const query = regionPickerQuery.trim().toLocaleLowerCase("tr-TR");
+    const selected = new Set(selectedRegionIds);
+    return regions
+      .filter((region) => {
+        const matchesQuery = !query || region.name.toLocaleLowerCase("tr-TR").includes(query);
+        return matchesQuery && !selected.has(region.id);
+      })
+      .slice(0, 8);
+  }, [regionPickerQuery, regions, selectedRegionIds]);
+  const missingRequiredFields = useMemo(() => {
+    const missing: string[] = [];
+    if (!title.trim()) missing.push("Proje başlığı");
+    if (!ngoId) missing.push("Kurum");
+    if (!price.trim()) missing.push("Tutar");
+    if (!donationUrl.trim()) missing.push("Bağış URL");
+    if (selectedCategoriesSummary.length === 0) missing.push("Kategori");
+    return missing;
+  }, [donationUrl, ngoId, price, selectedCategoriesSummary.length, title]);
 
   const filteredReorderedItems = useMemo(() => {
     const query = searchQuery.trim().toLocaleLowerCase("tr-TR");
@@ -310,13 +351,13 @@ export function ProjectPanel() {
         supabase.from("bolge").select("id,name,is_visible").order("id"),
         (hasActiveFilter
           ? supabase
-              .from("project")
-              .select("id,title,price,donation_url,is_visible,ngo_id,position,ngo:ngo_id(name,is_visible),project_bolge(bolge:bolge_id(id,name,is_visible)),project_categories(category:category_id(id,name,slug,parent_id,level,position,is_visible))")
-              .order("id", { ascending: false })
+            .from("project")
+            .select("id,title,price,donation_url,is_visible,ngo_id,position,ngo:ngo_id(name,is_visible),project_bolge(bolge:bolge_id(id,name,is_visible)),project_categories(category:category_id(id,name,slug,parent_id,level,position,is_visible))")
+            .order("id", { ascending: false })
           : supabase
-              .from("project")
-              .select("id,title,price,donation_url,is_visible,ngo_id,position,ngo:ngo_id(name,is_visible),project_bolge(bolge:bolge_id(id,name,is_visible)),project_categories(category:category_id(id,name,slug,parent_id,level,position,is_visible))")
-              .order("id", { ascending: false })),
+            .from("project")
+            .select("id,title,price,donation_url,is_visible,ngo_id,position,ngo:ngo_id(name,is_visible),project_bolge(bolge:bolge_id(id,name,is_visible)),project_categories(category:category_id(id,name,slug,parent_id,level,position,is_visible))")
+            .order("id", { ascending: false })),
       ]);
 
       if (ngoRes.error) throw ngoRes.error;
@@ -863,174 +904,488 @@ export function ProjectPanel() {
           </p>
         ) : null}
 
-        <form onSubmit={handleSubmit} className="mt-5 space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <label htmlFor="project-title" className="mb-1 block text-sm font-medium">
-                Başlık *
-              </label>
-              <input
-                id="project-title"
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm outline-none focus:border-brand-primary"
-                placeholder="Proje başlığı"
-                disabled={isSaving}
-              />
-              {fieldErrors.title ? <p className="mt-1 text-xs text-red-600">{fieldErrors.title}</p> : null}
-            </div>
-
-            <div>
-              <label htmlFor="project-price" className="mb-1 block text-sm font-medium">
-                Tutar *
-              </label>
-              <input
-                id="project-price"
-                type="number"
-                value={price}
-                onChange={(event) => setPrice(event.target.value)}
-                className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm outline-none focus:border-brand-primary"
-                placeholder="0"
-                disabled={isSaving}
-              />
-              {fieldErrors.price ? <p className="mt-1 text-xs text-red-600">{fieldErrors.price}</p> : null}
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor="project-url" className="mb-1 block text-sm font-medium">
-              Bağış URL *
-            </label>
-            <input
-              id="project-url"
-              type="url"
-              value={donationUrl}
-              onChange={(event) => setDonationUrl(event.target.value)}
-              className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm outline-none focus:border-brand-primary"
-              placeholder="https://example.org/donate"
-              disabled={isSaving}
-            />
-            {fieldErrors.donationUrl ? (
-              <p className="mt-1 text-xs text-red-600">{fieldErrors.donationUrl}</p>
-            ) : null}
-          </div>
-
-          <div>
-            <label htmlFor="project-ngo" className="mb-1 block text-sm font-medium">
-              Kurum *
-            </label>
-            <select
-              id="project-ngo"
-              value={ngoId}
-              onChange={(event) => setNgoId(event.target.value)}
-              className="h-10 w-full rounded-md border border-divider-softLight bg-surface-pageLight px-3 text-sm outline-none focus:border-brand-primary"
-              disabled={isSaving}
-            >
-              <option value="">Kurum seçin</option>
-              {ngos.map((ngo) => (
-                <option key={ngo.id} value={ngo.id}>
-                  {ngo.name}
-                </option>
-              ))}
-            </select>
-            {fieldErrors.ngoId ? <p className="mt-1 text-xs text-red-600">{fieldErrors.ngoId}</p> : null}
-          </div>
-
-          <label className="flex items-start justify-between gap-4 rounded-lg border border-divider-softLight bg-white px-4 py-3">
-            <span>
-              <span className="block text-sm font-medium text-text-primary">
-                Proje görünür olsun
-              </span>
-              <span className="mt-1 block text-xs leading-5 text-text-secondary">
-                Bu proje kullanıcı tarafında gösterilsin. Kapatıldığında yalnızca admin panelinde görünür.
-              </span>
-            </span>
-            <input
-              type="checkbox"
-              role="switch"
-              checked={isVisible}
-              onChange={(event) => setIsVisible(event.target.checked)}
-              disabled={isSaving}
-              className="mt-1 h-5 w-5 shrink-0 accent-brand-primary"
-            />
-          </label>
-
-          <fieldset>
-            <legend className="text-sm font-medium">Bölgeler</legend>
-            <div className="mt-2 grid gap-2 sm:grid-cols-2">
-              {regions.map((region) => (
-                <label
-                  key={region.id}
-                  className="inline-flex items-center gap-2 rounded-md border border-divider-softLight bg-surface-pageLight px-3 py-2 text-sm"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedRegionIds.includes(region.id)}
-                    onChange={() => toggleRegion(region.id)}
-                    disabled={isSaving}
-                  />
-                  {region.name}
-                </label>
-              ))}
-            </div>
-          </fieldset>
-
-          <fieldset className="space-y-3">
-            <legend className="text-sm font-medium">Kategori Ataması *</legend>
-            <div className="rounded-lg border border-divider-softLight bg-white p-3">
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {primaryCategories.map((primary) => {
-                const children = getDirectChildren(sortedCategories, primary.id);
-                const primaryChecked = effectiveSelectedCategoryIds.includes(primary.id);
-                return (
-                  <div
-                    key={primary.id}
-                    className="h-full rounded-md border border-divider-softLight/70 bg-surface-pageLight/60 p-2"
-                  >
-                    <label className="inline-flex items-center gap-2 text-sm font-semibold text-text-primary">
-                      <input
-                        type="checkbox"
-                        checked={primaryChecked}
-                        onChange={() => togglePrimaryCategoryGroup(primary.id)}
-                        disabled={isSaving}
-                      />
-                      {primary.name}
-                    </label>
-                    {children.length > 0 ? (
-                      <div className="mt-2 space-y-1 border-l border-divider-softLight pl-3">
-                        {children.map((child) => {
-                          const childChecked = selectedCategoryIds.includes(child.id);
-                          return (
-                            <label
-                              key={child.id}
-                              className="inline-flex w-full items-center gap-2 rounded-md px-2 py-1 text-sm text-text-secondary hover:bg-surface-categoryLight"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={childChecked}
-                                onChange={() => toggleCategory(child.id)}
-                                disabled={isSaving}
-                              />
-                              {child.name}
-                            </label>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <p className="mt-2 text-xs text-text-secondary">Alt kategori yok.</p>
-                    )}
-                  </div>
-                );
-              })}
+        <form onSubmit={handleSubmit} className="mt-6">
+          <div className="overflow-hidden rounded-2xl border border-divider-softLight bg-white shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
+            <div className="border-b border-divider-softLight bg-surface-pageLight/70 px-4 pt-3">
+              <div className="flex gap-2 overflow-x-auto">
+                {PROJECT_FORM_TABS.map((tab) => {
+                  const isActive = activeFormTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setActiveFormTab(tab.id)}
+                      className={`relative min-h-11 shrink-0 rounded-t-xl px-4 text-sm font-semibold transition ${isActive
+                        ? "bg-white text-brand-primary shadow-sm"
+                        : "text-text-secondary hover:bg-white/70 hover:text-text-primary"
+                        }`}
+                    >
+                      {tab.label}
+                      {isActive ? (
+                        <span className="absolute inset-x-4 bottom-0 h-0.5 rounded-full bg-brand-primary" />
+                      ) : null}
+                    </button>
+                  );
+                })}
               </div>
             </div>
-            <p className="text-xs text-text-secondary">
-              Alt kategori seçildiğinde üst kategorileri kayıt sırasında otomatik eklenir.
-            </p>
-            {fieldErrors.categories ? <p className="mt-1 text-xs text-red-600">{fieldErrors.categories}</p> : null}
-          </fieldset>
 
-          <div className="sticky bottom-0 z-10 -mx-4 flex flex-col gap-2 border-t border-divider-softLight bg-surface-pageLight px-4 py-3 sm:mx-0 sm:flex-row sm:items-center sm:border-t-0 sm:bg-transparent sm:px-0 sm:py-0">
+            <div className="min-h-[420px] p-5">
+              {activeFormTab === "summary" ? (
+                <section className="rounded-2xl border border-divider-softLight bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.04)]">
+                  <div className="mb-5">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-primary">
+                      Proje Özeti
+                    </p>
+                    <h3 className="mt-1 text-lg font-semibold text-text-primary">
+                      Yayına hazır olma durumu
+                    </h3>
+                    <p className="mt-1 text-sm text-text-secondary">
+                      Seçimlerinizi ve görünürlük durumunu tek ekranda kontrol edin.
+                    </p>
+                  </div>
+
+                  <div className="space-y-6">
+                    <dl className="rounded-2xl bg-surface-pageLight p-5">
+                      <div className="border-b border-divider-softLight pb-4">
+                        <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
+                          Proje Başlığı
+                        </dt>
+
+                        <dd className="mt-2 text-2xl font-bold leading-tight text-text-primary">
+                          {title.trim() || "Henüz proje başlığı girilmedi"}
+                        </dd>
+
+                        {title.trim() ? (
+                          <p className="mt-1 text-sm text-text-secondary">
+                            Bu proje kullanıcı tarafında bu başlıkla görüntülenecek.
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <div className="grid gap-4 pt-5 sm:grid-cols-3">
+                        <div>
+                          <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
+                            Kurum
+                          </dt>
+                          <dd className="mt-1 text-base font-semibold text-text-primary">
+                            {selectedNgoName}
+                          </dd>
+                        </div>
+
+                        <div>
+                          <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
+                            Durum
+                          </dt>
+                          <dd
+                            className={`mt-1 text-base font-semibold ${isVisible ? "text-green-700" : "text-slate-600"
+                              }`}
+                          >
+                            {isVisible ? "Görünür" : "Gizli"}
+                          </dd>
+                        </div>
+
+                        <div>
+                          <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
+                            Kategoriler
+                          </dt>
+                          <dd className="mt-1 text-base font-semibold text-text-primary">
+                            {selectedCategoriesSummary.length} seçili
+                          </dd>
+                        </div>
+
+                        <div>
+                          <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
+                            Bölgeler
+                          </dt>
+                          <dd className="mt-1 text-base font-semibold text-text-primary">
+                            {selectedRegionsSummary.length
+                              ? `${selectedRegionsSummary.length} seçili`
+                              : "Bölgesiz"}
+                          </dd>
+                        </div>
+                      </div>
+                    </dl>
+
+                    <div className="grid gap-6 lg:grid-cols-2">
+                      <section>
+                        <h4 className="text-sm font-semibold text-text-primary">Seçilen Kategoriler</h4>
+                        {selectedCategoriesSummary.length ? (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {selectedCategoriesSummary.map((category) => (
+                              <span
+                                key={category.id}
+                                className="inline-flex items-center gap-1.5 rounded-full bg-brand-primary/10 px-3 py-1.5 text-xs font-medium text-brand-primary"
+                              >
+                                <span className="text-[10px] leading-none">✓</span>
+                                {category.name}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-sm leading-6 text-text-secondary">
+                            Henüz kategori seçilmedi.
+                          </p>
+                        )}
+                      </section>
+
+                      <section>
+                        <h4 className="text-sm font-semibold text-text-primary">Seçilen Bölgeler</h4>
+                        {selectedRegionsSummary.length ? (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {selectedRegionsSummary.map((region) => (
+                              <span
+                                key={region.id}
+                                className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-text-primary"
+                              >
+                                <span className="text-[10px] leading-none">✓</span>
+                                {region.name}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-sm leading-6 text-text-secondary">
+                            Bölge opsiyonel. Bu proje bölgesiz yayımlanabilir.
+                          </p>
+                        )}
+                      </section>
+                    </div>
+
+                    <div className="grid gap-6 border-t border-divider-softLight pt-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+                      <div>
+                        <h4 className="text-sm font-semibold text-text-primary">Tamamlanma Durumu</h4>
+                        <ul className="mt-3 space-y-2 text-sm leading-6">
+                          <li className={title.trim() && ngoId && price.trim() && donationUrl.trim() ? "text-green-700" : "text-text-secondary"}>
+                            {title.trim() && ngoId && price.trim() && donationUrl.trim() ? "✓" : "•"} Temel bilgiler {title.trim() && ngoId && price.trim() && donationUrl.trim() ? "tamamlandı" : "eksik"}
+                          </li>
+                          <li className={selectedCategoriesSummary.length ? "text-green-700" : "text-text-secondary"}>
+                            {selectedCategoriesSummary.length ? "✓" : "•"} En az bir kategori {selectedCategoriesSummary.length ? "seçildi" : "eksik"}
+                          </li>
+                          <li className="text-text-secondary">• Bölge opsiyonel</li>
+                        </ul>
+                        {missingRequiredFields.length ? (
+                          <p className="mt-3 text-xs font-medium text-text-secondary">
+                            Eksik alanlar: {missingRequiredFields.join(", ")}
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <label className="flex items-center justify-between gap-4 rounded-2xl bg-surface-pageLight px-4 py-4">
+                        <span>
+                          <span className="block text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
+                            Yayın Durumu
+                          </span>
+                          <span className="mt-1 block text-sm font-semibold text-text-primary">
+                            Proje kullanıcı tarafında görünsün
+                          </span>
+                          <span className="mt-1 block text-xs leading-5 text-text-secondary">
+                            Kapatıldığında bu proje yalnızca admin panelinde görünür.
+                          </span>
+                          <span className={`mt-2 inline-flex text-xs font-semibold ${isVisible ? "text-green-700" : "text-slate-600"}`}>
+                            {isVisible ? "Görünür" : "Gizli"}
+                          </span>
+                        </span>
+                        <span className="relative inline-flex h-7 w-12 shrink-0 items-center">
+                          <input
+                            type="checkbox"
+                            role="switch"
+                            checked={isVisible}
+                            onChange={(event) => setIsVisible(event.target.checked)}
+                            disabled={isSaving}
+                            className="peer sr-only"
+                          />
+                          <span className="absolute inset-0 rounded-full bg-slate-200 transition peer-checked:bg-brand-primary peer-focus-visible:ring-4 peer-focus-visible:ring-brand-primary/15 peer-disabled:opacity-60" />
+                          <span className="absolute left-1 h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5" />
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                </section>
+              ) : null}
+
+              {activeFormTab === "basic" ? (
+                <section className="rounded-2xl border border-divider-softLight bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.04)]">
+                  <div className="mb-5">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-primary">
+                      1. Temel Bilgiler
+                    </p>
+                    <h3 className="mt-1 text-lg font-semibold text-text-primary">
+                      Projenin ana bilgileri
+                    </h3>
+                    <p className="mt-1 text-sm text-text-secondary">
+                      Adminlerin en sık doldurduğu alanlar burada, hızlı ve net.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="md:col-span-2">
+                      <label htmlFor="project-title" className="mb-1.5 block text-sm font-semibold text-text-primary">
+                        Proje Başlığı *
+                      </label>
+                      <input
+                        id="project-title"
+                        value={title}
+                        onChange={(event) => setTitle(event.target.value)}
+                        className="h-12 w-full rounded-xl border border-divider-softLight bg-surface-pageLight px-4 text-sm outline-none transition focus:border-brand-primary focus:bg-white focus:ring-4 focus:ring-brand-primary/10"
+                        placeholder="Örn: Gazze acil yardım kampanyası"
+                        disabled={isSaving}
+                      />
+                      {fieldErrors.title ? <p className="mt-1.5 text-xs text-red-600">{fieldErrors.title}</p> : null}
+                    </div>
+
+                    <div>
+                      <label htmlFor="project-ngo" className="mb-1.5 block text-sm font-semibold text-text-primary">
+                        Kurum *
+                      </label>
+                      <select
+                        id="project-ngo"
+                        value={ngoId}
+                        onChange={(event) => setNgoId(event.target.value)}
+                        className="h-12 w-full rounded-xl border border-divider-softLight bg-surface-pageLight px-4 text-sm outline-none transition focus:border-brand-primary focus:bg-white focus:ring-4 focus:ring-brand-primary/10"
+                        disabled={isSaving}
+                      >
+                        <option value="">Kurum seçin</option>
+                        {ngos.map((ngo) => (
+                          <option key={ngo.id} value={ngo.id}>
+                            {ngo.name}
+                          </option>
+                        ))}
+                      </select>
+                      {fieldErrors.ngoId ? <p className="mt-1.5 text-xs text-red-600">{fieldErrors.ngoId}</p> : null}
+                    </div>
+
+                    <div>
+                      <label htmlFor="project-price" className="mb-1.5 block text-sm font-semibold text-text-primary">
+                        Tutar *
+                      </label>
+                      <input
+                        id="project-price"
+                        type="number"
+                        value={price}
+                        onChange={(event) => setPrice(event.target.value)}
+                        className="h-12 w-full rounded-xl border border-divider-softLight bg-surface-pageLight px-4 text-sm outline-none transition focus:border-brand-primary focus:bg-white focus:ring-4 focus:ring-brand-primary/10"
+                        placeholder="0"
+                        disabled={isSaving}
+                      />
+                      {fieldErrors.price ? <p className="mt-1.5 text-xs text-red-600">{fieldErrors.price}</p> : null}
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label htmlFor="project-url" className="mb-1.5 block text-sm font-semibold text-text-primary">
+                        Bağış URL *
+                      </label>
+                      <input
+                        id="project-url"
+                        type="url"
+                        value={donationUrl}
+                        onChange={(event) => setDonationUrl(event.target.value)}
+                        className="h-12 w-full rounded-xl border border-divider-softLight bg-surface-pageLight px-4 text-sm outline-none transition focus:border-brand-primary focus:bg-white focus:ring-4 focus:ring-brand-primary/10"
+                        placeholder="https://example.org/donate"
+                        disabled={isSaving}
+                      />
+                      {fieldErrors.donationUrl ? (
+                        <p className="mt-1.5 text-xs text-red-600">{fieldErrors.donationUrl}</p>
+                      ) : null}
+                    </div>
+                  </div>
+                </section>
+              ) : null}
+
+              {activeFormTab === "categories" ? (
+                <section className="rounded-2xl border border-divider-softLight bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.04)]">
+                  <div className="mb-5">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-primary">
+                      2. Kategoriler
+                    </p>
+                    <h3 className="mt-1 text-lg font-semibold text-text-primary">
+                      Ana kategori seç, sonra detaylandır
+                    </h3>
+                    <p className="mt-1 text-sm text-text-secondary">
+                      Alt kategoriler yalnızca ilgili ana kategori seçildiğinde görünür.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    {primaryCategories.map((primary) => {
+                      const children = getDirectChildren(sortedCategories, primary.id);
+                      const primaryChecked = effectiveSelectedCategoryIds.includes(primary.id);
+                      return (
+                        <button
+                          key={primary.id}
+                          type="button"
+                          onClick={() => togglePrimaryCategoryGroup(primary.id)}
+                          disabled={isSaving}
+                          className={`group flex min-h-24 flex-col items-start justify-between rounded-2xl border p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-70 ${primaryChecked
+                            ? "border-brand-primary/45 bg-brand-primary/10 ring-2 ring-brand-primary/10"
+                            : "border-divider-softLight bg-surface-pageLight hover:border-brand-primary/25 hover:bg-white"
+                            }`}
+                        >
+                          <span className="flex w-full items-start justify-between gap-3">
+                            <span className="text-sm font-semibold text-text-primary">{primary.name}</span>
+                            <span
+                              className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold transition ${primaryChecked
+                                ? "bg-brand-primary text-white"
+                                : "bg-white text-text-secondary ring-1 ring-divider-softLight group-hover:text-brand-primary"
+                                }`}
+                            >
+                              {primaryChecked ? "✓" : "+"}
+                            </span>
+                          </span>
+                          <span className="mt-3 text-xs text-text-secondary">
+                            {children.length ? `${children.length} alt kategori` : "Alt kategori yok"}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-5 space-y-3">
+                    {primaryCategories.map((primary) => {
+                      const children = getDirectChildren(sortedCategories, primary.id);
+                      const primaryChecked = effectiveSelectedCategoryIds.includes(primary.id);
+                      if (!primaryChecked || children.length === 0) return null;
+                      return (
+                        <div key={primary.id} className="rounded-2xl border border-divider-softLight bg-surface-pageLight/70 p-4">
+                          <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+                            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-brand-primary text-xs text-white">
+                              ✓
+                            </span>
+                            {primary.name}
+                          </div>
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                            {children.map((child) => {
+                              const childChecked = selectedCategoryIds.includes(child.id);
+                              return (
+                                <label
+                                  key={child.id}
+                                  className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border px-3 py-2 text-sm transition ${childChecked
+                                    ? "border-brand-primary/35 bg-white text-text-primary ring-2 ring-brand-primary/10"
+                                    : "border-transparent bg-white/70 text-text-secondary hover:bg-white"
+                                    }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={childChecked}
+                                    onChange={() => toggleCategory(child.id)}
+                                    disabled={isSaving}
+                                    className="h-4 w-4 rounded border-divider-softLight text-brand-primary focus:ring-brand-primary"
+                                  />
+                                  {child.name}
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-5 rounded-2xl border border-divider-softLight bg-surface-pageLight p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">
+                      Seçilen Kategoriler
+                    </p>
+                    {selectedCategoriesSummary.length ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {selectedCategoriesSummary.map((category) => (
+                          <span
+                            key={category.id}
+                            className="inline-flex items-center gap-1 rounded-full bg-brand-primary/10 px-3 py-1 text-xs font-semibold text-brand-primary"
+                          >
+                            ✓ {category.name}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-sm text-text-secondary">Henüz kategori seçilmedi.</p>
+                    )}
+                  </div>
+                  <p className="mt-3 text-xs text-text-secondary">
+                    Alt kategori seçildiğinde üst kategorileri kayıt sırasında otomatik eklenir.
+                  </p>
+                  {fieldErrors.categories ? <p className="mt-1.5 text-xs text-red-600">{fieldErrors.categories}</p> : null}
+                </section>
+              ) : null}
+
+              {activeFormTab === "regions" ? (
+                <section className="rounded-2xl border border-divider-softLight bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.04)]">
+                  <div className="mb-5">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-primary">
+                      3. Bölgeler
+                    </p>
+                    <h3 className="mt-1 text-lg font-semibold text-text-primary">
+                      Bölge kapsamı ekle
+                    </h3>
+                    <p className="mt-1 text-sm text-text-secondary">
+                      Bölge opsiyoneldir. Arayarak birden fazla bölge seçebilirsiniz.
+                    </p>
+                  </div>
+
+                  <label htmlFor="project-region-search" className="mb-1.5 block text-sm font-semibold text-text-primary">
+                    Bölge Ara...
+                  </label>
+                  <input
+                    id="project-region-search"
+                    type="search"
+                    value={regionPickerQuery}
+                    onChange={(event) => setRegionPickerQuery(event.target.value)}
+                    placeholder="Gazze, Sudan, Türkiye..."
+                    className="h-12 w-full rounded-xl border border-divider-softLight bg-surface-pageLight px-4 text-sm outline-none transition focus:border-brand-primary focus:bg-white focus:ring-4 focus:ring-brand-primary/10"
+                    disabled={isSaving}
+                  />
+
+                  <div className="mt-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">
+                      Seçilen Bölgeler
+                    </p>
+                    {selectedRegionsSummary.length ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {selectedRegionsSummary.map((region) => (
+                          <button
+                            key={region.id}
+                            type="button"
+                            onClick={() => toggleRegion(region.id)}
+                            disabled={isSaving}
+                            className="inline-flex min-h-9 items-center gap-2 rounded-full bg-brand-primary/10 px-3 py-1 text-xs font-semibold text-brand-primary transition hover:bg-brand-primary/15 disabled:opacity-70"
+                            aria-label={`${region.name} bölgesini kaldır`}
+                          >
+                            ✓ {region.name}
+                            <span className="text-sm leading-none">×</span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-sm text-text-secondary">Bölge seçilmedi. Bu proje bölgesiz yayımlanabilir.</p>
+                    )}
+                  </div>
+
+                  <div className="mt-4 rounded-2xl border border-divider-softLight bg-surface-pageLight p-2">
+                    {regionPickerResults.length ? (
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {regionPickerResults.map((region) => (
+                          <button
+                            key={region.id}
+                            type="button"
+                            onClick={() => toggleRegion(region.id)}
+                            disabled={isSaving}
+                            className="flex min-h-11 items-center justify-between rounded-xl bg-white px-3 py-2 text-left text-sm font-medium text-text-primary transition hover:bg-brand-primary/5 disabled:opacity-70"
+                          >
+                            <span>{region.name}</span>
+                            <span className="text-xs font-semibold text-brand-primary">Ekle</span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="px-3 py-4 text-sm text-text-secondary">
+                        Eşleşen veya eklenebilir bölge bulunamadı.
+                      </p>
+                    )}
+                  </div>
+                </section>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="sticky bottom-0 z-10 -mx-4 mt-5 flex flex-col gap-2 border-t border-divider-softLight bg-surface-pageLight/95 px-4 py-3 backdrop-blur sm:mx-0 sm:flex-row sm:items-center sm:rounded-2xl sm:border sm:bg-white sm:px-4 sm:shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
             <button
               type="submit"
               disabled={isSaving || isLoading}
