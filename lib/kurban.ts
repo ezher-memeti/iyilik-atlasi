@@ -39,6 +39,7 @@ function mapProject(project: ProjectListItem): KurbanProjectWithOrganization {
     region: regions[0] ?? undefined,
     regions: regions.length ? regions : undefined,
     donation_url: project.donation_url,
+    is_visible: project.is_visible,
     organization: {
       id: ngoId,
       name: ngoName,

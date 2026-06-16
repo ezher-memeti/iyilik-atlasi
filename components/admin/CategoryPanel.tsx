@@ -10,6 +10,7 @@ import {
 } from "@/lib/adminTextValidation";
 import {
   getDescendantCategoryIds,
+  getCategoryAncestors,
   getDirectChildren,
   getPrimaryCategories,
   sortCategories,
@@ -26,6 +27,7 @@ type ToastItem = {
 
 const INITIAL_NAME = "";
 const INITIAL_DESCRIPTION = "";
+const INITIAL_IS_VISIBLE = true;
 const CATEGORY_BUCKET = process.env.NEXT_PUBLIC_SUPABASE_CATEGORY_BUCKET ?? "category-images";
 
 function arrayMoveItem<T>(items: T[], from: number, to: number) {
@@ -60,6 +62,33 @@ function Spinner() {
   return <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden />;
 }
 
+function VisibilityBadge({ isVisible }: { isVisible: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+        isVisible
+          ? "bg-green-50 text-green-700 ring-1 ring-green-200"
+          : "bg-slate-100 text-slate-600 ring-1 ring-slate-200"
+      }`}
+    >
+      {isVisible ? "Görünür" : "Gizli"}
+    </span>
+  );
+}
+
+function ParentHiddenBadge() {
+  return (
+    <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200">
+      Üst kategori gizli
+    </span>
+  );
+}
+
+function isParentCategoryHidden(category: CategoryItem, categories: CategoryItem[]) {
+  if (!category.is_visible || category.parent_id === null) return false;
+  return getCategoryAncestors(categories, category.id).some((ancestor) => !ancestor.is_visible);
+}
+
 export function CategoryPanel() {
   const supabase = createClient();
   const formSectionRef = useRef<HTMLElement | null>(null);
@@ -68,6 +97,7 @@ export function CategoryPanel() {
 
   const [name, setName] = useState(INITIAL_NAME);
   const [description, setDescription] = useState(INITIAL_DESCRIPTION);
+  const [isVisible, setIsVisible] = useState(INITIAL_IS_VISIBLE);
   const [parentCategoryId, setParentCategoryId] = useState<string>("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
@@ -94,6 +124,7 @@ export function CategoryPanel() {
   const [initialFormState, setInitialFormState] = useState({
     name: INITIAL_NAME,
     description: INITIAL_DESCRIPTION,
+    isVisible: INITIAL_IS_VISIBLE,
     imageUrl: "",
     parentCategoryId: "",
   });
@@ -128,12 +159,15 @@ export function CategoryPanel() {
     () =>
       name.trim() !== initialFormState.name.trim() ||
       description.trim() !== initialFormState.description.trim() ||
+      isVisible !== initialFormState.isVisible ||
       (imageUrl ?? "") !== initialFormState.imageUrl ||
       parentCategoryId !== initialFormState.parentCategoryId ||
       Boolean(selectedImageFile),
     [
       description,
       imageUrl,
+      isVisible,
+      initialFormState.isVisible,
       initialFormState.description,
       initialFormState.imageUrl,
       initialFormState.name,
@@ -170,6 +204,12 @@ export function CategoryPanel() {
     return next.map((category) => ({
       id: category.id,
       primary: category.name,
+      status: (
+        <span className="inline-flex flex-wrap items-center gap-1.5">
+          <VisibilityBadge isVisible={category.is_visible} />
+          {isParentCategoryHidden(category, next) ? <ParentHiddenBadge /> : null}
+        </span>
+      ),
       secondary: category.description?.trim() || "Açıklama belirtilmedi.",
       meta: category.image_url ? "Görsel eklendi" : "Görsel yok",
       isHighlighted: editingCategoryId === category.id,
@@ -200,7 +240,7 @@ export function CategoryPanel() {
       setError(null);
       let query = supabase
         .from("category")
-        .select("id,name,slug,description,image_url,parent_id,level,position");
+        .select("id,name,slug,description,image_url,is_visible,parent_id,level,position");
       query = query.order("position", { ascending: true, nullsFirst: false });
       const { data, error: fetchError } = await query;
 
@@ -293,6 +333,7 @@ export function CategoryPanel() {
   function resetForm() {
     setName(INITIAL_NAME);
     setDescription(INITIAL_DESCRIPTION);
+    setIsVisible(INITIAL_IS_VISIBLE);
     setParentCategoryId("");
     setImageUrl(null);
     resetPreview();
@@ -301,6 +342,7 @@ export function CategoryPanel() {
     setInitialFormState({
       name: INITIAL_NAME,
       description: INITIAL_DESCRIPTION,
+      isVisible: INITIAL_IS_VISIBLE,
       imageUrl: "",
       parentCategoryId: "",
     });
@@ -320,12 +362,14 @@ export function CategoryPanel() {
     setEditingCategoryId(category.id);
     setName(category.name);
     setDescription(category.description ?? "");
+    setIsVisible(category.is_visible);
     setParentCategoryId(category.parent_id !== null ? String(category.parent_id) : "");
     setImageUrl(category.image_url ?? null);
     resetPreview();
     setInitialFormState({
       name: category.name ?? "",
       description: category.description ?? "",
+      isVisible: category.is_visible,
       imageUrl: category.image_url ?? "",
       parentCategoryId: category.parent_id !== null ? String(category.parent_id) : "",
     });
@@ -477,6 +521,7 @@ export function CategoryPanel() {
                 name: trimmed,
                 description: trimmedDescription || null,
                 image_url: nextImageUrl || null,
+                is_visible: isVisible,
                 parent_id: selectedParentId,
                 level: computedLevel,
               }
@@ -492,6 +537,7 @@ export function CategoryPanel() {
             name: trimmed,
             description: trimmedDescription || null,
             image_url: nextImageUrl || null,
+            is_visible: isVisible,
             parent_id: selectedParentId,
             level: computedLevel,
           })
@@ -508,6 +554,7 @@ export function CategoryPanel() {
           name: trimmed,
           description: trimmedDescription || null,
           image_url: nextImageUrl || null,
+          is_visible: isVisible,
           parent_id: selectedParentId,
           level: computedLevel,
           position: maxPosition + 1,
@@ -522,6 +569,7 @@ export function CategoryPanel() {
           name: trimmed,
           description: trimmedDescription || null,
           image_url: nextImageUrl || null,
+          is_visible: isVisible,
           parent_id: selectedParentId,
           level: computedLevel,
           position: maxPosition + 1,
@@ -535,6 +583,7 @@ export function CategoryPanel() {
       setInitialFormState({
         name: INITIAL_NAME,
         description: INITIAL_DESCRIPTION,
+        isVisible: INITIAL_IS_VISIBLE,
         imageUrl: "",
         parentCategoryId: "",
       });
@@ -663,7 +712,7 @@ export function CategoryPanel() {
       setError(null);
       const { data, error: fetchError } = await supabase
         .from("category")
-        .select("id,name,slug,description,image_url,parent_id,level,position")
+        .select("id,name,slug,description,image_url,is_visible,parent_id,level,position")
         .order("position", { ascending: true, nullsFirst: false });
       if (fetchError) throw fetchError;
       const next = (data ?? []) as CategoryItem[];
@@ -769,6 +818,25 @@ export function CategoryPanel() {
             </select>
             {fieldErrors.parent ? <p className="mt-1 text-xs text-red-600">{fieldErrors.parent}</p> : null}
           </div>
+
+          <label className="flex items-start justify-between gap-4 rounded-2xl border border-divider-softLight bg-surface-pageLight px-4 py-3">
+            <span>
+              <span className="block text-sm font-medium text-text-primary">
+                Kategori görünür olsun
+              </span>
+              <span className="mt-1 block text-xs leading-5 text-text-secondary">
+                Bu kategori kullanıcı tarafında gösterilsin. Kapatıldığında yalnızca admin panelinde görünür.
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              role="switch"
+              checked={isVisible}
+              onChange={(event) => setIsVisible(event.target.checked)}
+              disabled={isSaving}
+              className="mt-1 h-5 w-5 shrink-0 accent-brand-primary"
+            />
+          </label>
 
           <div className="rounded-2xl border border-divider-softLight bg-slate-50/70 p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
@@ -918,7 +986,10 @@ export function CategoryPanel() {
                 <div key={primary.id} className="rounded-xl border border-divider-softLight bg-surface-pageLight/70 p-3">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-semibold text-text-primary">{primary.name}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-text-primary">{primary.name}</p>
+                        <VisibilityBadge isVisible={primary.is_visible} />
+                      </div>
                       <p className="text-xs text-text-secondary">
                         Ana kategori · Seviye {primary.level ?? 1}
                       </p>
@@ -935,7 +1006,13 @@ export function CategoryPanel() {
                           <div key={child.id} className="rounded-lg bg-white p-2">
                             <div className="flex flex-wrap items-center justify-between gap-3">
                               <div>
-                                <p className="text-sm text-text-primary">{child.name}</p>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="text-sm text-text-primary">{child.name}</p>
+                                  <VisibilityBadge isVisible={child.is_visible} />
+                                  {isParentCategoryHidden(child, hierarchyOrderedCategories) ? (
+                                    <ParentHiddenBadge />
+                                  ) : null}
+                                </div>
                                 <p className="text-xs text-text-secondary">
                                   Alt kategori · Seviye {child.level ?? 2}
                                 </p>
@@ -950,7 +1027,13 @@ export function CategoryPanel() {
                                     className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-surface-pageLight px-2 py-1.5"
                                   >
                                     <div>
-                                      <p className="text-xs font-medium text-text-primary">{grandchild.name}</p>
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <p className="text-xs font-medium text-text-primary">{grandchild.name}</p>
+                                        <VisibilityBadge isVisible={grandchild.is_visible} />
+                                        {isParentCategoryHidden(grandchild, hierarchyOrderedCategories) ? (
+                                          <ParentHiddenBadge />
+                                        ) : null}
+                                      </div>
                                       <p className="text-[11px] text-text-secondary">
                                         Alt kategori · Seviye {grandchild.level ?? 3}
                                       </p>

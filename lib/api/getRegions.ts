@@ -4,6 +4,7 @@ export type RegionItem = {
   id: number;
   name: string;
   slug?: string | null;
+  is_visible: boolean;
   latitude: number | null;
   longitude: number | null;
   map_zoom: number | null;
@@ -15,7 +16,8 @@ export async function getRegions(): Promise<RegionItem[]> {
   const supabase = await createClient();
   const primaryQuery = await supabase
     .from("bolge")
-    .select("id,name,slug,latitude,longitude,map_zoom,geojson_url,geojson")
+    .select("id,name,slug,is_visible,latitude,longitude,map_zoom,geojson_url,geojson")
+    .eq("is_visible", true)
     .order("id", { ascending: true });
 
   if (!primaryQuery.error) {
@@ -24,7 +26,8 @@ export async function getRegions(): Promise<RegionItem[]> {
 
   const fallbackWithoutSlug = await supabase
     .from("bolge")
-    .select("id,name,latitude,longitude,map_zoom,geojson_url,geojson")
+    .select("id,name,is_visible,latitude,longitude,map_zoom,geojson_url,geojson")
+    .eq("is_visible", true)
     .order("id", { ascending: true });
 
   if (!fallbackWithoutSlug.error) {
@@ -36,7 +39,8 @@ export async function getRegions(): Promise<RegionItem[]> {
 
   const fallbackMinimal = await supabase
     .from("bolge")
-    .select("id,name,latitude,longitude,map_zoom")
+    .select("id,name,is_visible,latitude,longitude,map_zoom")
+    .eq("is_visible", true)
     .order("id", { ascending: true });
 
   if (fallbackMinimal.error) {

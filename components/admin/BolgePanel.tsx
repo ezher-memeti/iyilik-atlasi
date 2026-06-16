@@ -11,8 +11,23 @@ import {
 type BolgeItem = {
   id: number;
   name: string;
+  is_visible: boolean;
   position?: number | null;
 };
+
+function VisibilityBadge({ isVisible }: { isVisible: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+        isVisible
+          ? "bg-green-50 text-green-700 ring-1 ring-green-200"
+          : "bg-slate-100 text-slate-600 ring-1 ring-slate-200"
+      }`}
+    >
+      {isVisible ? "Görünür" : "Gizli"}
+    </span>
+  );
+}
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) return error.message;
@@ -49,6 +64,7 @@ export function BolgePanel() {
   const supabase = createClient();
   const [items, setItems] = useState<BolgeItem[]>([]);
   const [name, setName] = useState("");
+  const [isVisible, setIsVisible] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -106,6 +122,7 @@ export function BolgePanel() {
 
   function resetForm() {
     setName("");
+    setIsVisible(true);
     setEditingId(null);
   }
 
@@ -126,10 +143,11 @@ export function BolgePanel() {
 
     try {
       setIsSaving(true);
+      const payload = { name: trimmed, is_visible: isVisible };
       if (isEditMode && editingId !== null) {
         const { error: updateError } = await supabase
           .from("bolge")
-          .update({ name: trimmed })
+          .update(payload)
           .eq("id", editingId);
         if (updateError) {
           setError(`Bölge güncellenemedi: ${parseSupabaseError(updateError, "Servis hatası")}`);
@@ -137,7 +155,7 @@ export function BolgePanel() {
         }
         setMessage("Bölge güncellendi.");
       } else {
-        const { error: insertError } = await supabase.from("bolge").insert({ name: trimmed });
+        const { error: insertError } = await supabase.from("bolge").insert(payload);
         if (insertError) {
           setError(`Bölge oluşturulamadı: ${parseSupabaseError(insertError, "Servis hatası")}`);
           return;
@@ -183,6 +201,7 @@ export function BolgePanel() {
       id: item.id,
       primary: item.name,
       meta: `ID: ${item.id}`,
+      status: <VisibilityBadge isVisible={item.is_visible} />,
       isHighlighted: editingId === item.id,
     }));
   }
@@ -281,6 +300,24 @@ export function BolgePanel() {
             />
           </div>
 
+          <label className="flex items-start gap-3 rounded-lg border border-divider-softLight bg-white px-3 py-3">
+            <input
+              type="checkbox"
+              checked={isVisible}
+              onChange={(event) => setIsVisible(event.target.checked)}
+              disabled={isSaving}
+              className="mt-1 h-4 w-4 rounded border-divider-softLight text-brand-primary focus:ring-brand-primary"
+            />
+            <span>
+              <span className="block text-sm font-semibold text-text-primary">
+                Bölge görünür olsun
+              </span>
+              <span className="mt-1 block text-xs leading-5 text-text-secondary">
+                Bu bölge kullanıcı tarafında gösterilsin. Kapatıldığında yalnızca admin panelinde görünür.
+              </span>
+            </span>
+          </label>
+
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="submit"
@@ -335,13 +372,17 @@ export function BolgePanel() {
                     : "border-divider-softLight bg-white"
                 }`}
               >
-                <p className="text-sm font-medium text-text-primary">{item.name}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-medium text-text-primary">{item.name}</p>
+                  <VisibilityBadge isVisible={item.is_visible} />
+                </div>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => {
                       setEditingId(item.id);
                       setName(item.name);
+                      setIsVisible(item.is_visible);
                       setMessage(null);
                       setError(null);
                     }}

@@ -18,7 +18,7 @@ import {
 
 type NgoOption = { id: number; name: string };
 type CategoryOption = FlatCategory;
-type RegionOption = { id: number; name: string };
+type RegionOption = { id: number; name: string; is_visible: boolean | null };
 type ProjectCategoryRow = { category_id: number };
 type ProjectBolgeRow = { bolge_id: number };
 type ProjectListItem = {
@@ -26,11 +26,12 @@ type ProjectListItem = {
   title: string;
   price: number | null;
   donation_url: string;
+  is_visible: boolean;
   ngo_id: number;
-  regions: Array<{ id: number; name: string }>;
+  regions: Array<{ id: number; name: string; is_visible: boolean | null }>;
   categoryIds: number[];
-  categories: Array<{ id: number; name: string; parent_id: number | null }>;
-  ngo: { name: string } | null;
+  categories: Array<{ id: number; name: string; parent_id: number | null; is_visible: boolean | null }>;
+  ngo: { name: string; is_visible: boolean | null } | null;
   position: number | null;
 };
 
@@ -39,19 +40,26 @@ type ProjectRow = {
   title: string;
   price: number | null;
   donation_url: string;
+  is_visible: boolean | null;
   ngo_id: number;
   project_bolge:
     | Array<{
-        bolge: { id: number; name: string } | { id: number; name: string }[] | null;
+        bolge:
+          | { id: number; name: string; is_visible: boolean | null }
+          | { id: number; name: string; is_visible: boolean | null }[]
+          | null;
       }>
     | null;
   position: number | null;
-  ngo: { name: string } | { name: string }[] | null;
+  ngo:
+    | { name: string; is_visible: boolean | null }
+    | { name: string; is_visible: boolean | null }[]
+    | null;
   project_categories:
     | Array<{
         category:
-          | { id: number; name: string; parent_id: number | null }
-          | { id: number; name: string; parent_id: number | null }[]
+          | { id: number; name: string; parent_id: number | null; is_visible: boolean | null }
+          | { id: number; name: string; parent_id: number | null; is_visible: boolean | null }[]
           | null;
       }>
     | null;
@@ -61,6 +69,7 @@ const INITIAL_FORM = {
   title: "",
   price: "",
   donationUrl: "",
+  isVisible: true,
   ngoId: "",
   selectedRegionIds: [] as number[],
   selectedCategoryIds: [] as number[],
@@ -96,6 +105,34 @@ function mapProjectToSortableItem(
   return {
     id: project.id,
     primary: project.title,
+    status: (
+      <span className="inline-flex flex-wrap items-center gap-1.5">
+        <span
+          className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+            project.is_visible
+              ? "bg-green-50 text-green-700 ring-1 ring-green-200"
+              : "bg-slate-100 text-slate-600 ring-1 ring-slate-200"
+          }`}
+        >
+          {project.is_visible ? "Görünür" : "Gizli"}
+        </span>
+        {project.ngo?.is_visible === false ? (
+          <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+            Kurum gizli
+          </span>
+        ) : null}
+        {project.categories.length > 0 && !project.categories.some((category) => category.is_visible !== false) ? (
+          <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200">
+            Bu projenin görünür kategorisi yok
+          </span>
+        ) : null}
+        {project.regions.length > 0 && !project.regions.some((region) => region.is_visible !== false) ? (
+          <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200">
+            Bu projenin görünür bölgesi yok
+          </span>
+        ) : null}
+      </span>
+    ),
     meta: `Kurum: ${project.ngo?.name ?? "Bilinmiyor"}`,
     secondary: `Kurum: ${project.ngo?.name ?? "Bilinmiyor"} · Bölge: ${
       project.regions.length ? project.regions.map((region) => region.name).join(", ") : "Belirtilmedi"
@@ -149,6 +186,7 @@ export function ProjectPanel() {
   const [title, setTitle] = useState(INITIAL_FORM.title);
   const [price, setPrice] = useState(INITIAL_FORM.price);
   const [donationUrl, setDonationUrl] = useState(INITIAL_FORM.donationUrl);
+  const [isVisible, setIsVisible] = useState(INITIAL_FORM.isVisible);
   const [ngoId, setNgoId] = useState(INITIAL_FORM.ngoId);
   const [selectedRegionIds, setSelectedRegionIds] = useState<number[]>(
     INITIAL_FORM.selectedRegionIds,
@@ -214,6 +252,7 @@ export function ProjectPanel() {
       title.trim() !== initialFormState.title.trim() ||
       price.trim() !== initialFormState.price.trim() ||
       donationUrl.trim() !== initialFormState.donationUrl.trim() ||
+      isVisible !== initialFormState.isVisible ||
       ngoId.trim() !== initialFormState.ngoId.trim() ||
       normalizeList(selectedRegionIds) !== normalizeList(initialFormState.selectedRegionIds) ||
       normalizeList(selectedCategoryIds) !== normalizeList(initialFormState.selectedCategoryIds)
@@ -221,6 +260,7 @@ export function ProjectPanel() {
   }, [
     donationUrl,
     initialFormState,
+    isVisible,
     ngoId,
     price,
     selectedCategoryIds,
@@ -265,17 +305,17 @@ export function ProjectPanel() {
           .order("position", { ascending: true, nullsFirst: false }),
         supabase
           .from("category")
-          .select("id,name,parent_id,level,position,slug,description,image_url")
+          .select("id,name,parent_id,level,position,slug,description,image_url,is_visible")
           .order("position", { ascending: true, nullsFirst: false }),
-        supabase.from("bolge").select("id,name").order("id"),
+        supabase.from("bolge").select("id,name,is_visible").order("id"),
         (hasActiveFilter
           ? supabase
               .from("project")
-              .select("id,title,price,donation_url,ngo_id,position,ngo:ngo_id(name),project_bolge(bolge:bolge_id(id,name)),project_categories(category:category_id(id,name,slug,parent_id,level,position))")
+              .select("id,title,price,donation_url,is_visible,ngo_id,position,ngo:ngo_id(name,is_visible),project_bolge(bolge:bolge_id(id,name,is_visible)),project_categories(category:category_id(id,name,slug,parent_id,level,position,is_visible))")
               .order("id", { ascending: false })
           : supabase
               .from("project")
-              .select("id,title,price,donation_url,ngo_id,position,ngo:ngo_id(name),project_bolge(bolge:bolge_id(id,name)),project_categories(category:category_id(id,name,slug,parent_id,level,position))")
+              .select("id,title,price,donation_url,is_visible,ngo_id,position,ngo:ngo_id(name,is_visible),project_bolge(bolge:bolge_id(id,name,is_visible)),project_categories(category:category_id(id,name,slug,parent_id,level,position,is_visible))")
               .order("id", { ascending: false })),
       ]);
 
@@ -292,6 +332,7 @@ export function ProjectPanel() {
         title: row.title,
         price: row.price,
         donation_url: row.donation_url,
+        is_visible: row.is_visible ?? true,
         ngo_id: row.ngo_id,
         regions: Array.from(
           new Map(
@@ -300,7 +341,10 @@ export function ProjectPanel() {
                 const bolge = Array.isArray(item.bolge) ? item.bolge[0] ?? null : item.bolge;
                 return bolge ? [bolge.id, bolge] : null;
               })
-              .filter((item): item is [number, { id: number; name: string }] => Boolean(item)),
+              .filter(
+                (item): item is [number, { id: number; name: string; is_visible: boolean | null }] =>
+                  Boolean(item),
+              ),
           ).values(),
         ),
         categoryIds: Array.from(
@@ -322,7 +366,7 @@ export function ProjectPanel() {
               .filter(
                 (
                   category,
-                ): category is { id: number; name: string; parent_id: number | null } =>
+                ): category is { id: number; name: string; parent_id: number | null; is_visible: boolean | null } =>
                   Boolean(category),
               )
               .map((category) => [category.id, category]),
@@ -371,6 +415,7 @@ export function ProjectPanel() {
     setTitle(INITIAL_FORM.title);
     setPrice(INITIAL_FORM.price);
     setDonationUrl(INITIAL_FORM.donationUrl);
+    setIsVisible(INITIAL_FORM.isVisible);
     setNgoId(INITIAL_FORM.ngoId);
     setSelectedRegionIds(INITIAL_FORM.selectedRegionIds);
     setSelectedCategoryIds(INITIAL_FORM.selectedCategoryIds);
@@ -448,6 +493,7 @@ export function ProjectPanel() {
       setTitle(project.title ?? "");
       setPrice(project.price !== null ? String(project.price) : "");
       setDonationUrl(project.donation_url ?? "");
+      setIsVisible(project.is_visible);
       setNgoId(String(project.ngo_id));
       setSelectedRegionIds(Array.from(new Set(regionIds)));
       setSelectedCategoryIds(categoryIds);
@@ -455,6 +501,7 @@ export function ProjectPanel() {
         title: project.title ?? "",
         price: project.price !== null ? String(project.price) : "",
         donationUrl: project.donation_url ?? "",
+        isVisible: project.is_visible,
         ngoId: String(project.ngo_id),
         selectedRegionIds: Array.from(new Set(regionIds)),
         selectedCategoryIds: categoryIds,
@@ -541,6 +588,7 @@ export function ProjectPanel() {
         title: trimmedTitle,
         price: parsedPrice,
         donation_url: trimmedUrl,
+        is_visible: isVisible,
       };
 
       let projectId = editingProjectId;
@@ -724,7 +772,7 @@ export function ProjectPanel() {
       setError(null);
       const { data, error: fetchError } = await supabase
         .from("project")
-        .select("id,title,price,donation_url,ngo_id,position,ngo:ngo_id(name),project_bolge(bolge:bolge_id(id,name)),project_categories(category:category_id(id,name,slug,parent_id,level))")
+        .select("id,title,price,donation_url,is_visible,ngo_id,position,ngo:ngo_id(name,is_visible),project_bolge(bolge:bolge_id(id,name,is_visible)),project_categories(category:category_id(id,name,slug,parent_id,level,is_visible))")
         .order("position", { ascending: true, nullsFirst: false });
       if (fetchError) throw fetchError;
 
@@ -733,6 +781,7 @@ export function ProjectPanel() {
         title: row.title,
         price: row.price,
         donation_url: row.donation_url,
+        is_visible: row.is_visible ?? true,
         ngo_id: row.ngo_id,
         regions: Array.from(
           new Map(
@@ -741,7 +790,10 @@ export function ProjectPanel() {
                 const bolge = Array.isArray(item.bolge) ? item.bolge[0] ?? null : item.bolge;
                 return bolge ? [bolge.id, bolge] : null;
               })
-              .filter((item): item is [number, { id: number; name: string }] => Boolean(item)),
+              .filter(
+                (item): item is [number, { id: number; name: string; is_visible: boolean | null }] =>
+                  Boolean(item),
+              ),
           ).values(),
         ),
         categoryIds: Array.from(
@@ -761,7 +813,7 @@ export function ProjectPanel() {
               .filter(
                 (
                   category,
-                ): category is { id: number; name: string; parent_id: number | null } =>
+                ): category is { id: number; name: string; parent_id: number | null; is_visible: boolean | null } =>
                   Boolean(category),
               )
               .map((category) => [category.id, category]),
@@ -883,6 +935,25 @@ export function ProjectPanel() {
             </select>
             {fieldErrors.ngoId ? <p className="mt-1 text-xs text-red-600">{fieldErrors.ngoId}</p> : null}
           </div>
+
+          <label className="flex items-start justify-between gap-4 rounded-lg border border-divider-softLight bg-white px-4 py-3">
+            <span>
+              <span className="block text-sm font-medium text-text-primary">
+                Proje görünür olsun
+              </span>
+              <span className="mt-1 block text-xs leading-5 text-text-secondary">
+                Bu proje kullanıcı tarafında gösterilsin. Kapatıldığında yalnızca admin panelinde görünür.
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              role="switch"
+              checked={isVisible}
+              onChange={(event) => setIsVisible(event.target.checked)}
+              disabled={isSaving}
+              className="mt-1 h-5 w-5 shrink-0 accent-brand-primary"
+            />
+          </label>
 
           <fieldset>
             <legend className="text-sm font-medium">Bölgeler</legend>

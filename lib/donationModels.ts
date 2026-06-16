@@ -16,6 +16,7 @@ export type KurbanProject = {
   region?: string;
   regions?: string[];
   donation_url: string;
+  is_visible: boolean;
 };
 
 export type KurbanOrganization = {
@@ -39,6 +40,7 @@ export type KurbanProjectWithOrganization = KurbanProject & {
     slug: string;
     parent_id: number | null;
     level: number | null;
+    is_visible: boolean;
   }>;
   id: string;
 };

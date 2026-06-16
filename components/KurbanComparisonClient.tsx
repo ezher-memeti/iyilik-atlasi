@@ -22,6 +22,7 @@ type KurbanComparisonClientProps = {
   regions: Array<{
     id: number;
     name: string;
+    is_visible: boolean;
     latitude: number | null;
     longitude: number | null;
     map_zoom: number | null;

@@ -1,18 +1,25 @@
 import { createClient } from "@/lib/supabase/server";
+import {
+  getPublicVisibleCategoryIds,
+  type FlatCategory,
+} from "@/lib/categoryHierarchy";
 
 export type ProjectListItem = {
   id: number;
   title: string;
   price: number | null;
   donation_url: string;
+  is_visible: boolean;
   ngo: {
     id: number;
     name: string;
+    is_visible: boolean;
     logo_url?: string | null;
   } | null;
   bolgeler: Array<{
     id: number;
     name: string;
+    is_visible: boolean;
   }>;
   categories: Array<{
     id: number;
@@ -20,6 +27,7 @@ export type ProjectListItem = {
     slug: string;
     parent_id: number | null;
     level: number | null;
+    is_visible: boolean;
   }>;
 };
 
@@ -32,10 +40,14 @@ type ProjectQueryRow = {
   title: string;
   price: number | null;
   donation_url: string;
-  ngo: { id: number; name: string; logo_url?: string | null } | null;
+  is_visible: boolean | null;
+  ngo: { id: number; name: string; is_visible: boolean | null; logo_url?: string | null } | null;
   project_bolge:
     | Array<{
-        bolge: { id: number; name: string } | { id: number; name: string }[] | null;
+        bolge:
+          | { id: number; name: string; is_visible: boolean | null }
+          | { id: number; name: string; is_visible: boolean | null }[]
+          | null;
       }>
     | null;
   project_categories:
@@ -46,10 +58,13 @@ type ProjectQueryRow = {
         slug: string;
         parent_id: number | null;
         level: number | null;
+        is_visible: boolean;
       } | null;
     }>
   | null;
 };
+
+type ProjectCategoryItem = ProjectListItem["categories"][number];
 
 export async function getProjects(options: GetProjectsOptions = {}): Promise<ProjectListItem[]> {
   const { isFiltering = false } = options;
@@ -62,15 +77,18 @@ export async function getProjects(options: GetProjectsOptions = {}): Promise<Pro
       title,
       price,
       donation_url,
-      ngo:ngo_id (
+      is_visible,
+      ngo:ngo_id!inner (
         id,
         name,
+        is_visible,
         logo_url
       ),
       project_bolge (
         bolge:bolge_id (
           id,
-          name
+          name,
+          is_visible
         )
       ),
       project_categories (
@@ -79,52 +97,85 @@ export async function getProjects(options: GetProjectsOptions = {}): Promise<Pro
           name,
           slug,
           parent_id,
-          level
+          level,
+          is_visible
         )
       )
       `,
-    );
+    )
+    .eq("is_visible", true)
+    .eq("ngo.is_visible", true);
 
   query = isFiltering
     ? query.order("id", { ascending: true })
     : query.order("position", { ascending: true, nullsFirst: false });
 
-  const { data, error } = await query;
-  if (error) {
-    throw new Error(`Failed to fetch projects: ${error.message}`);
+  const [projectResult, categoryResult] = await Promise.all([
+    query,
+    supabase
+      .from("category")
+      .select("id,name,slug,parent_id,level,position,is_visible"),
+  ]);
+
+  if (projectResult.error) {
+    throw new Error(`Failed to fetch projects: ${projectResult.error.message}`);
+  }
+  if (categoryResult.error) {
+    throw new Error(`Failed to fetch project categories: ${categoryResult.error.message}`);
   }
 
 
-  const rows = (data ?? []) as unknown as ProjectQueryRow[];
+  const rows = (projectResult.data ?? []) as unknown as ProjectQueryRow[];
+  const allCategories = (categoryResult.data ?? []) as ProjectCategoryItem[];
+  const publicVisibleCategoryIds = getPublicVisibleCategoryIds(allCategories as FlatCategory[]);
 
-  return rows.map((row) => ({
-    id: row.id,
-    title: row.title,
-    price: row.price,
-    donation_url: row.donation_url,
-    ngo: row.ngo,
-    bolgeler: Array.from(
-      new Map(
-        (row.project_bolge ?? [])
-          .map((joinRow) => {
+  return rows
+    .map((row) => {
+      const regionRelations = row.project_bolge ?? [];
+      const visibleRegions = Array.from(
+        regionRelations
+          .reduce((regionMap, joinRow) => {
             const bolge = Array.isArray(joinRow.bolge)
               ? joinRow.bolge[0] ?? null
               : joinRow.bolge;
-            return bolge ? [bolge.id, bolge] : null;
-          })
-          .filter((item): item is [number, { id: number; name: string }] => Boolean(item)),
-      ).values(),
-    ),
-    categories: (row.project_categories ?? [])
-      .map((joinRow) => joinRow.category)
-      .filter((category): category is {
-        id: number;
-        name: string;
-        slug: string;
-        parent_id: number | null;
-        level: number | null;
-      } =>
-        Boolean(category),
-      ),
-  }));
+            if (bolge && bolge.is_visible !== false) {
+              regionMap.set(bolge.id, { ...bolge, is_visible: bolge.is_visible ?? true });
+            }
+            return regionMap;
+          },
+          new Map<number, { id: number; name: string; is_visible: boolean }>(),
+        )
+        .values(),
+      );
+
+      return {
+        id: row.id,
+        title: row.title,
+        price: row.price,
+        donation_url: row.donation_url,
+        is_visible: row.is_visible ?? true,
+        ngo: row.ngo
+          ? {
+              ...row.ngo,
+              is_visible: row.ngo.is_visible ?? true,
+            }
+          : null,
+        bolgeler: visibleRegions,
+        hasPublicRegionScope: regionRelations.length === 0 || visibleRegions.length > 0,
+        categories: (row.project_categories ?? [])
+          .map((joinRow) => joinRow.category)
+          .filter((category): category is {
+            id: number;
+            name: string;
+            slug: string;
+            parent_id: number | null;
+            level: number | null;
+            is_visible: boolean;
+          } =>
+            Boolean(category && publicVisibleCategoryIds.has(category.id)),
+          ),
+      };
+    })
+    .filter((project) => project.categories.length > 0 && project.hasPublicRegionScope)
+    .map(({ hasPublicRegionScope: _hasPublicRegionScope, ...project }) => project);
 }

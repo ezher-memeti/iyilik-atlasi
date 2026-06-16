@@ -6,6 +6,7 @@ export type FlatCategory = {
   parent_id: number | null;
   level: number | null;
   position: number | null;
+  is_visible: boolean;
   image_url?: string | null;
 };
 
@@ -64,6 +65,19 @@ export function getCategoryAncestors(categories: FlatCategory[], categoryId: num
   }
 
   return ancestors;
+}
+
+export function isPublicCategoryVisible(category: FlatCategory, categories: FlatCategory[]) {
+  if (!category.is_visible) return false;
+  return getCategoryAncestors(categories, category.id).every((ancestor) => ancestor.is_visible);
+}
+
+export function getPublicVisibleCategoryIds(categories: FlatCategory[]) {
+  return new Set(
+    categories
+      .filter((category) => isPublicCategoryVisible(category, categories))
+      .map((category) => category.id),
+  );
 }
 
 export function buildProjectCategoryIds(primaryId: number, selectedChildIds: number[]) {

@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 export function NgoForm() {
   const supabase = createClient();
   const [name, setName] = useState("");
+  const [isVisible, setIsVisible] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -23,13 +24,16 @@ export function NgoForm() {
 
     try {
       setIsSubmitting(true);
-      const { error: insertError } = await supabase.from("ngo").insert({ name: trimmed });
+      const { error: insertError } = await supabase
+        .from("ngo")
+        .insert({ name: trimmed, is_visible: isVisible });
 
       if (insertError) {
         throw insertError;
       }
 
       setName("");
+      setIsVisible(true);
       setMessage("Kurum başarıyla oluşturuldu.");
     } catch (submitError) {
       console.error(submitError);
@@ -50,6 +54,16 @@ export function NgoForm() {
         onChange={(event) => setName(event.target.value)}
         placeholder="Kurum adı"
       />
+      <label>
+        <input
+          type="checkbox"
+          role="switch"
+          checked={isVisible}
+          onChange={(event) => setIsVisible(event.target.checked)}
+        />
+        Kurum görünür olsun
+      </label>
+      <p>Bu kurum kullanıcı tarafında gösterilsin. Kapatıldığında kurum ve kuruma bağlı projeler kullanıcı tarafında görünmez.</p>
       <div>
         <button type="submit" disabled={isSubmitting}>
           {isSubmitting ? "Oluşturuluyor..." : "Kurum Oluştur"}

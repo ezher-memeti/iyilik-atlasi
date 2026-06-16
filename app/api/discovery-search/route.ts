@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import {
+  getPublicVisibleCategoryIds,
+  isPublicCategoryVisible,
+  type FlatCategory,
+} from "@/lib/categoryHierarchy";
 
 type SearchResultItem = {
   type: "category" | "region" | "ngo" | "project";
@@ -49,18 +54,45 @@ export async function GET(request: Request) {
     const pattern = `%${q}%`;
     const supabase = await createClient();
 
-    const [categoryRes, regionRes, ngoRes, projectRes] = await Promise.all([
-      supabase.from("category").select("id,name").ilike("name", pattern).limit(limit),
-      supabase.from("bolge").select("id,name").ilike("name", pattern).limit(limit),
-      supabase.from("ngo").select("id,name,slug").ilike("name", pattern).limit(limit),
+    const [allCategoryRes, categoryRes, regionRes, ngoRes, projectRes] = await Promise.all([
+      supabase
+        .from("category")
+        .select("id,name,parent_id,level,position,is_visible"),
+      supabase
+        .from("category")
+        .select("id,name,parent_id,level,position,is_visible")
+        .ilike("name", pattern)
+        .limit(limit),
+      supabase
+        .from("bolge")
+        .select("id,name,is_visible")
+        .ilike("name", pattern)
+        .eq("is_visible", true)
+        .limit(limit),
+      supabase
+        .from("ngo")
+        .select("id,name,slug")
+        .ilike("name", pattern)
+        .eq("is_visible", true)
+        .limit(limit),
       supabase
         .from("project")
-        .select("id,title,ngo:ngo_id(name,slug)")
+        .select("id,title,ngo:ngo_id!inner(name,slug,is_visible),project_bolge(bolge:bolge_id(id,is_visible)),project_categories(category:category_id(id,name,parent_id,level,position,is_visible))")
         .ilike("title", pattern)
+        .eq("is_visible", true)
+        .eq("ngo.is_visible", true)
         .limit(limit),
     ]);
 
-    const categoryResults: SearchResultItem[] = (categoryRes.data ?? []).map((item) => ({
+    if (allCategoryRes.error) {
+      throw new Error(allCategoryRes.error.message);
+    }
+    const allCategories = (allCategoryRes.data ?? []) as FlatCategory[];
+    const publicVisibleCategoryIds = getPublicVisibleCategoryIds(allCategories);
+
+    const categoryResults: SearchResultItem[] = ((categoryRes.data ?? []) as FlatCategory[]).filter((item) =>
+      isPublicCategoryVisible(item, allCategories),
+    ).map((item) => ({
       type: "category",
       id: item.id,
       title: item.name,
@@ -84,7 +116,17 @@ export async function GET(request: Request) {
       href: `/kurumlar/${item.slug?.trim() || createSlug(item.name || `ngo-${item.id}`)}`,
     }));
 
-    const projectResults: SearchResultItem[] = (projectRes.data ?? []).map((item) => {
+    const projectResults: SearchResultItem[] = (projectRes.data ?? []).filter((item) => {
+      const regionRelations = item.project_bolge ?? [];
+      const hasPublicRegionScope = regionRelations.length === 0 || regionRelations.some((joinRow) => {
+        const bolge = Array.isArray(joinRow.bolge) ? joinRow.bolge[0] : joinRow.bolge;
+        return bolge?.is_visible !== false;
+      });
+      return hasPublicRegionScope && (item.project_categories ?? []).some((joinRow) => {
+        const category = Array.isArray(joinRow.category) ? joinRow.category[0] : joinRow.category;
+        return Boolean(category && publicVisibleCategoryIds.has(category.id));
+      });
+    }).map((item) => {
       const ngo = Array.isArray(item.ngo) ? item.ngo[0] : item.ngo;
       return {
         type: "project",

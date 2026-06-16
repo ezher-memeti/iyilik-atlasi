@@ -13,6 +13,7 @@ type NgoItem = {
   name: string;
   description: string | null;
   website_url: string | null;
+  is_visible: boolean;
   logo_url: string | null;
   position: number | null;
   ngo_bolge?: Array<{ bolge: { id: number; name: string } | { id: number; name: string }[] | null }> | null;
@@ -24,6 +25,7 @@ const INITIAL_FORM = {
   name: "",
   description: "",
   websiteUrl: "",
+  isVisible: true,
   logoUrl: "",
 };
 
@@ -59,6 +61,17 @@ function mapNgoToSortableItem(
   return {
     id: ngo.id,
     primary: ngo.name,
+    status: (
+      <span
+        className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+          ngo.is_visible
+            ? "bg-green-50 text-green-700 ring-1 ring-green-200"
+            : "bg-slate-100 text-slate-600 ring-1 ring-slate-200"
+        }`}
+      >
+        {ngo.is_visible ? "Görünür" : "Gizli"}
+      </span>
+    ),
     secondary: [
       ngo.description ? shorten(ngo.description) : "Açıklama yok",
       ngo.logo_url ? "Logo URL tanımlı" : "Logo yok",
@@ -113,6 +126,7 @@ export function NgoPanel() {
   const [name, setName] = useState(INITIAL_FORM.name);
   const [description, setDescription] = useState(INITIAL_FORM.description);
   const [websiteUrl, setWebsiteUrl] = useState(INITIAL_FORM.websiteUrl);
+  const [isVisible, setIsVisible] = useState(INITIAL_FORM.isVisible);
   const [logoUrl, setLogoUrl] = useState(INITIAL_FORM.logoUrl);
   const [selectedRegionIds, setSelectedRegionIds] = useState<number[]>([]);
   const [editingNgoId, setEditingNgoId] = useState<number | null>(null);
@@ -167,10 +181,11 @@ export function NgoPanel() {
       name.trim() !== initialFormState.name.trim() ||
       description.trim() !== initialFormState.description.trim() ||
       websiteUrl.trim() !== initialFormState.websiteUrl.trim() ||
+      isVisible !== initialFormState.isVisible ||
       logoUrl.trim() !== initialFormState.logoUrl.trim() ||
       initialRegionKey !== currentRegionKey
     );
-  }, [description, initialFormState, logoUrl, name, selectedRegionIds, websiteUrl]);
+  }, [description, initialFormState, isVisible, logoUrl, name, selectedRegionIds, websiteUrl]);
 
   const filteredReorderedItems = useMemo(() => {
     const query = searchQuery.trim().toLocaleLowerCase("tr-TR");
@@ -202,7 +217,7 @@ export function NgoPanel() {
 
       let query = supabase
         .from("ngo")
-        .select("id,name,description,website_url,logo_url,position,ngo_bolge(bolge:bolge_id(id,name))");
+        .select("id,name,description,website_url,is_visible,logo_url,position,ngo_bolge(bolge:bolge_id(id,name))");
       query = query.order("id", { ascending: false });
       const { data, error: fetchError } = await query;
 
@@ -255,6 +270,7 @@ export function NgoPanel() {
     setName(INITIAL_FORM.name);
     setDescription(INITIAL_FORM.description);
     setWebsiteUrl(INITIAL_FORM.websiteUrl);
+    setIsVisible(INITIAL_FORM.isVisible);
     setLogoUrl(INITIAL_FORM.logoUrl);
     setSelectedRegionIds([]);
     setEditingNgoId(null);
@@ -338,6 +354,7 @@ export function NgoPanel() {
       setName(ngo.name ?? "");
       setDescription(ngo.description ?? "");
       setWebsiteUrl(ngo.website_url ?? "");
+      setIsVisible(ngo.is_visible);
       setLogoUrl(ngo.logo_url ?? "");
       const nextRegionIds = ((data ?? []) as NgoBolgeRow[]).map((item) => item.bolge_id);
       setSelectedRegionIds(nextRegionIds);
@@ -345,6 +362,7 @@ export function NgoPanel() {
         name: ngo.name ?? "",
         description: ngo.description ?? "",
         websiteUrl: ngo.website_url ?? "",
+        isVisible: ngo.is_visible,
         logoUrl: ngo.logo_url ?? "",
         selectedRegionIds: nextRegionIds,
       });
@@ -387,6 +405,7 @@ export function NgoPanel() {
       name: name.trim(),
       description: description.trim() || null,
       website_url: websiteUrl.trim() || null,
+      is_visible: isVisible,
       logo_url: logoUrl.trim() || null,
     };
 
@@ -545,7 +564,7 @@ export function NgoPanel() {
       setError(null);
       const { data, error: fetchError } = await supabase
         .from("ngo")
-        .select("id,name,description,website_url,logo_url,position,ngo_bolge(bolge:bolge_id(id,name))")
+        .select("id,name,description,website_url,is_visible,logo_url,position,ngo_bolge(bolge:bolge_id(id,name))")
         .order("position", { ascending: true, nullsFirst: false });
       if (fetchError) throw fetchError;
       const next = (data ?? []) as NgoItem[];
@@ -638,6 +657,25 @@ export function NgoPanel() {
               <p className="mt-1 text-xs text-red-600">{fieldErrors.websiteUrl}</p>
             ) : null}
           </div>
+
+          <label className="flex items-start justify-between gap-4 rounded-lg border border-divider-softLight bg-white px-4 py-3">
+            <span>
+              <span className="block text-sm font-medium text-text-primary">
+                Kurum görünür olsun
+              </span>
+              <span className="mt-1 block text-xs leading-5 text-text-secondary">
+                Bu kurum kullanıcı tarafında gösterilsin. Kapatıldığında kurum ve kuruma bağlı projeler kullanıcı tarafında görünmez.
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              role="switch"
+              checked={isVisible}
+              onChange={(event) => setIsVisible(event.target.checked)}
+              disabled={isSaving}
+              className="mt-1 h-5 w-5 shrink-0 accent-brand-primary"
+            />
+          </label>
 
           <div>
             <label htmlFor="ngo-logo-url" className="mb-1 block text-sm font-medium">

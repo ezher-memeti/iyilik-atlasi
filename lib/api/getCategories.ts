@@ -1,5 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
-import { sortCategories, type FlatCategory } from "@/lib/categoryHierarchy";
+import {
+  isPublicCategoryVisible,
+  sortCategories,
+  type FlatCategory,
+} from "@/lib/categoryHierarchy";
 
 export type CategoryItem = FlatCategory;
 
@@ -17,6 +21,7 @@ export async function getCategories(options: GetCategoriesOptions = {}): Promise
     parent_id,
     level,
     position,
+    is_visible,
     image_url
   `);
   const { data, error } = await query;
@@ -26,7 +31,9 @@ export async function getCategories(options: GetCategoriesOptions = {}): Promise
     throw new Error(`Failed to fetch categories: ${error.message}`);
   }
 
-  const rows = (data ?? []) as CategoryItem[];
+  const rows = ((data ?? []) as CategoryItem[]).filter((category, _index, categories) =>
+    isPublicCategoryVisible(category, categories),
+  );
   if (isFiltering) {
     return [...rows].sort((a, b) => a.id - b.id);
   }

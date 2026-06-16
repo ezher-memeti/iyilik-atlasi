@@ -22,6 +22,7 @@ export function ProjectForm() {
   const [title, setTitle] = useState("");
   const [price, setPrice] = useState("");
   const [donationUrl, setDonationUrl] = useState("");
+  const [isVisible, setIsVisible] = useState(true);
   const [ngoId, setNgoId] = useState("");
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([]);
 
@@ -110,6 +111,7 @@ export function ProjectForm() {
           title: trimmedTitle,
           price: parsedPrice,
           donation_url: trimmedUrl,
+          is_visible: isVisible,
           ngo_id: Number(ngoId),
         })
         .select("id")
@@ -135,6 +137,7 @@ export function ProjectForm() {
       setTitle("");
       setPrice("");
       setDonationUrl("");
+      setIsVisible(true);
       setNgoId("");
       setSelectedCategoryIds([]);
       setMessage("Proje başarıyla oluşturuldu.");
@@ -178,6 +181,17 @@ export function ProjectForm() {
         onChange={(event) => setDonationUrl(event.target.value)}
         placeholder="https://example.org/donate"
       />
+
+      <label>
+        <input
+          type="checkbox"
+          role="switch"
+          checked={isVisible}
+          onChange={(event) => setIsVisible(event.target.checked)}
+        />
+        Proje görünür olsun
+      </label>
+      <p>Bu proje kullanıcı tarafında gösterilsin. Kapatıldığında yalnızca admin panelinde görünür.</p>
 
       <label htmlFor="project-ngo">Kurum</label>
       <select id="project-ngo" value={ngoId} onChange={(event) => setNgoId(event.target.value)}>

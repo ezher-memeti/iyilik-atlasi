@@ -23,6 +23,7 @@ export type SortableListItem = {
   primary: string;
   meta?: string;
   secondary?: string;
+  status?: ReactNode;
   link?: string | null;
   isHighlighted?: boolean;
   actions?: ReactNode;
@@ -128,9 +129,12 @@ function SortableRow({
         )}
 
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-text-primary">
-            {item.primary}
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-semibold text-text-primary">
+              {item.primary}
+            </p>
+            {item.status ? item.status : null}
+          </div>
           {item.meta ? (
             <p className="mt-1 text-xs font-medium uppercase tracking-wide text-text-secondary">
               {item.meta}

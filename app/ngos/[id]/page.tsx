@@ -1,5 +1,9 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import {
+  getPublicVisibleCategoryIds,
+  type FlatCategory,
+} from "@/lib/categoryHierarchy";
 
 type NgoProfilePageProps = {
   params: Promise<{
@@ -12,27 +16,38 @@ type NgoQueryRow = {
   name: string;
   description: string | null;
   website_url: string | null;
+  is_visible: boolean | null;
   projects:
     | Array<{
         id: number;
         title: string;
         price: number | null;
         donation_url: string | null;
+        is_visible: boolean | null;
         project_bolge:
           | Array<{
-              bolge: { id: number; name: string } | { id: number; name: string }[] | null;
+              bolge:
+                | { id: number; name: string; is_visible: boolean | null }
+                | { id: number; name: string; is_visible: boolean | null }[]
+                | null;
             }>
           | null;
         project_categories:
           | Array<{
-              category: { id: number; name: string } | { id: number; name: string }[] | null;
+              category:
+                | { id: number; name: string; parent_id: number | null; level: number | null; position: number | null; is_visible: boolean | null }
+                | { id: number; name: string; parent_id: number | null; level: number | null; position: number | null; is_visible: boolean | null }[]
+                | null;
             }>
           | null;
       }>
     | null;
   ngo_bolge:
     | Array<{
-        bolge: { id: number; name: string } | { id: number; name: string }[] | null;
+        bolge:
+          | { id: number; name: string; is_visible: boolean | null }
+          | { id: number; name: string; is_visible: boolean | null }[]
+          | null;
       }>
     | null;
 };
@@ -43,6 +58,7 @@ type NgoProfileData = {
     name: string;
     description: string | null;
     website_url: string | null;
+    is_visible: boolean;
   };
   projects: Array<{
     id: number;
@@ -92,7 +108,8 @@ function buildInsights(projects: NgoProfileData["projects"]) {
 async function getNgoProfileData(id: number): Promise<NgoProfileData | null> {
   const supabase = await createClient();
 
-  const { data, error } = await supabase
+  const [ngoResult, categoryResult] = await Promise.all([
+    supabase
     .from("ngo")
     .select(
       `
@@ -100,51 +117,75 @@ async function getNgoProfileData(id: number): Promise<NgoProfileData | null> {
       name,
       description,
       website_url,
+      is_visible,
       projects:project (
         id,
         title,
         price,
         donation_url,
+        is_visible,
         project_bolge (
           bolge:bolge_id (
             id,
-            name
+            name,
+            is_visible
           )
         ),
         project_categories (
           category:category_id (
             id,
-            name
+            name,
+            parent_id,
+            level,
+            position,
+            is_visible
           )
         )
       ),
       ngo_bolge (
         bolge:bolge_id (
           id,
-          name
+          name,
+          is_visible
         )
       )
       `,
     )
     .eq("id", id)
-    .single();
+    .eq("is_visible", true)
+    .eq("projects.is_visible", true)
+    .single(),
+    supabase
+      .from("category")
+      .select("id,name,parent_id,level,position,is_visible"),
+  ]);
 
-  if (error || !data) {
+  if (ngoResult.error || !ngoResult.data || categoryResult.error) {
     return null;
   }
 
-  const row = data as unknown as NgoQueryRow;
-  const projects = (row.projects ?? []).map((project) => {
+  const row = ngoResult.data as unknown as NgoQueryRow;
+  const publicVisibleCategoryIds = getPublicVisibleCategoryIds(
+    (categoryResult.data ?? []) as FlatCategory[],
+  );
+  const projects = (row.projects ?? []).filter((project) => project.is_visible !== false).map((project) => {
+    const regionRelations = project.project_bolge ?? [];
     const regions = Array.from(
       new Set(
-        (project.project_bolge ?? [])
-          .map((item) => pickOne(item.bolge)?.name ?? null)
+        regionRelations
+          .map((item) => {
+            const bolge = pickOne(item.bolge);
+            return bolge?.is_visible !== false ? bolge?.name ?? null : null;
+          })
           .filter((name): name is string => Boolean(name)),
       ),
     );
     const categories = (project.project_categories ?? [])
-      .map((item) => pickOne(item.category)?.name ?? null)
-      .filter((name): name is string => Boolean(name));
+      .map((item) => pickOne(item.category))
+      .filter((category): category is { id: number; name: string; parent_id: number | null; level: number | null; position: number | null; is_visible: boolean | null } =>
+        Boolean(category && publicVisibleCategoryIds.has(category.id)),
+      )
+      .map((category) => category.name);
 
     return {
       id: project.id,
@@ -152,9 +193,10 @@ async function getNgoProfileData(id: number): Promise<NgoProfileData | null> {
       price: project.price,
       donation_url: project.donation_url,
       regions,
+      hasPublicRegionScope: regionRelations.length === 0 || regions.length > 0,
       categories: Array.from(new Set(categories)),
     };
-  });
+  }).filter((project) => project.categories.length > 0 && project.hasPublicRegionScope);
 
   const categories = Array.from(
     new Set(projects.flatMap((project) => project.categories).filter(Boolean)),
@@ -163,7 +205,10 @@ async function getNgoProfileData(id: number): Promise<NgoProfileData | null> {
   const regions = Array.from(
     new Set(
       (row.ngo_bolge ?? [])
-        .map((item) => pickOne(item.bolge)?.name ?? null)
+        .map((item) => {
+          const bolge = pickOne(item.bolge);
+          return bolge?.is_visible !== false ? bolge?.name ?? null : null;
+        })
         .filter((name): name is string => Boolean(name)),
     ),
   );
@@ -174,6 +219,7 @@ async function getNgoProfileData(id: number): Promise<NgoProfileData | null> {
       name: row.name,
       description: row.description,
       website_url: row.website_url,
+      is_visible: row.is_visible ?? true,
     },
     projects,
     categories,
