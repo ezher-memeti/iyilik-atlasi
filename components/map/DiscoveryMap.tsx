@@ -1,19 +1,29 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { type LatLngExpression, type Map as LeafletMap } from "leaflet";
-import { CircleMarker, MapContainer, Popup, TileLayer, ZoomControl, useMap } from "react-leaflet";
-import { RegionGeoJsonLayer } from "@/components/map/RegionGeoJsonLayer";
+import { type LatLngBounds, type LatLngExpression, type Map as LeafletMap } from "leaflet";
+import { MapContainer, Popup, TileLayer, ZoomControl, useMap } from "react-leaflet";
+import { AdaptiveRegionLayer } from "@/components/map/AdaptiveRegionLayer";
+import { MapViewportController } from "@/components/map/MapViewportController";
 import { RegionPreviewPopup } from "@/components/map/RegionPreviewPopup";
 import type { MapRegion, RegionPreview } from "@/components/map/mapTypes";
+import type { ZoomStage } from "@/lib/map/zoomUtils";
 import { parseRegionGeoJson } from "@/lib/map/geojsonUtils";
 
 type DiscoveryMapProps = {
   mapRef: React.MutableRefObject<LeafletMap | null>;
   regions: MapRegion[];
+  regionProjectCounts?: Map<number, number>;
+  zoomStage?: ZoomStage;
+  showHoverPreview?: boolean;
+  showZoomControl?: boolean;
   hoveredRegionId: number | null;
   selectedRegionId: number | null;
   hoveredPreview: RegionPreview | null;
+  selectedPreview: RegionPreview | null;
+  selectedVisibleRegionCount?: number;
+  selectedTopCategories?: string[];
+  onViewportChange?: (payload: { bounds: LatLngBounds; zoom: number }) => void;
   onHoverRegion: (regionId: number | null) => void;
   onSelectRegion: (region: MapRegion) => void;
 };
@@ -35,9 +45,17 @@ function MapRefBinder({ mapRef }: { mapRef: React.MutableRefObject<LeafletMap | 
 export function DiscoveryMap({
   mapRef,
   regions,
+  regionProjectCounts,
+  zoomStage = "medium",
+  showHoverPreview = true,
+  showZoomControl = true,
   hoveredRegionId,
   selectedRegionId,
   hoveredPreview,
+  selectedPreview,
+  selectedVisibleRegionCount,
+  selectedTopCategories,
+  onViewportChange,
   onHoverRegion,
   onSelectRegion,
 }: DiscoveryMapProps) {
@@ -46,8 +64,9 @@ export function DiscoveryMap({
       regions.map((region) => ({
         ...region,
         parsedGeoJson: parseRegionGeoJson(region.geojson),
+        projectCount: regionProjectCounts?.get(region.id) ?? 0,
       })),
-    [regions],
+    [regions, regionProjectCounts],
   );
 
   const regionById = useMemo(
@@ -75,49 +94,22 @@ export function DiscoveryMap({
         url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
         attribution='&copy; OpenStreetMap contributors &copy; CARTO'
       />
-      <ZoomControl position="bottomright" />
+      {showZoomControl ? <ZoomControl position="bottomright" /> : null}
+      {onViewportChange ? <MapViewportController onViewportChange={onViewportChange} /> : null}
 
-      {normalizedRegions.map((region) =>
-        region.parsedGeoJson ? (
-          <RegionGeoJsonLayer
-            key={`geojson-${region.id}`}
-            regionId={region.id}
-            data={region.parsedGeoJson}
-            active={selectedRegionId === region.id}
-            hovered={hoveredRegionId === region.id}
-            onHoverStart={onHoverRegion}
-            onHoverEnd={() => onHoverRegion(null)}
-            onSelect={handleSelect}
-          />
-        ) : null,
-      )}
+      <AdaptiveRegionLayer
+        regions={normalizedRegions}
+        hoveredRegionId={hoveredRegionId}
+        selectedRegionId={selectedRegionId}
+        zoomStage={zoomStage}
+        onHoverRegion={onHoverRegion}
+        onSelectRegion={handleSelect}
+      />
 
-      {normalizedRegions
-        .filter((region) => region.latitude !== null && region.longitude !== null)
-        .map((region) => {
-          const active = selectedRegionId === region.id;
-          const hovered = hoveredRegionId === region.id;
-          return (
-            <CircleMarker
-              key={`marker-${region.id}`}
-              center={[region.latitude as number, region.longitude as number]}
-              radius={active ? 8 : hovered ? 7 : 6}
-              pathOptions={{
-                color: "#065f46",
-                weight: active ? 2 : 1.5,
-                fillColor: active ? "#10b981" : hovered ? "#34d399" : "#6ee7b7",
-                fillOpacity: active ? 0.9 : hovered ? 0.8 : 0.7,
-              }}
-              eventHandlers={{
-                click: () => handleSelect(region.id),
-                mouseover: () => onHoverRegion(region.id),
-                mouseout: () => onHoverRegion(null),
-              }}
-            />
-          );
-        })}
-
-      {hoveredPreview && hoveredPreview.region.latitude !== null && hoveredPreview.region.longitude !== null ? (
+      {showHoverPreview &&
+      hoveredPreview &&
+      hoveredPreview.region.latitude !== null &&
+      hoveredPreview.region.longitude !== null ? (
         <Popup
           position={[hoveredPreview.region.latitude, hoveredPreview.region.longitude]}
           closeButton={false}
@@ -125,6 +117,23 @@ export function DiscoveryMap({
           className="[&_.leaflet-popup-content-wrapper]:!rounded-2xl [&_.leaflet-popup-content-wrapper]:!shadow-none [&_.leaflet-popup-content]:!m-0 [&_.leaflet-popup-tip]:!bg-white"
         >
           <RegionPreviewPopup preview={hoveredPreview} />
+        </Popup>
+      ) : null}
+
+      {selectedPreview &&
+      selectedPreview.region.latitude !== null &&
+      selectedPreview.region.longitude !== null ? (
+        <Popup
+          position={[selectedPreview.region.latitude, selectedPreview.region.longitude]}
+          closeButton={false}
+          autoPan={false}
+          className="[&_.leaflet-popup-content-wrapper]:!rounded-2xl [&_.leaflet-popup-content-wrapper]:!shadow-none [&_.leaflet-popup-content]:!m-0 [&_.leaflet-popup-tip]:!bg-white"
+        >
+          <RegionPreviewPopup
+            preview={selectedPreview}
+            visibleRegionCount={selectedVisibleRegionCount}
+            topCategories={selectedTopCategories}
+          />
         </Popup>
       ) : null}
     </MapContainer>

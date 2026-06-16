@@ -3,10 +3,16 @@
 import dynamic from "next/dynamic";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Map as LeafletMap } from "leaflet";
+import type { LatLngBounds, Map as LeafletMap } from "leaflet";
+import { DynamicSidebar } from "@/components/map/DynamicSidebar";
 import { RegionProjectSheet } from "@/components/map/RegionProjectSheet";
 import type { MapRegion, RegionProject } from "@/components/map/mapTypes";
+import { useMapFilterSync } from "@/hooks/useMapFilterSync";
+import { useMapRecommendations } from "@/hooks/useMapRecommendations";
+import { useMapZoomLevel } from "@/hooks/useMapZoomLevel";
 import { useRegionMapData } from "@/hooks/useRegionMapData";
+import { useViewportProjects } from "@/hooks/useViewportProjects";
+import { useVisibleRegions } from "@/hooks/useVisibleRegions";
 
 const DiscoveryMap = dynamic(
   () => import("@/components/map/DiscoveryMap").then((mod) => mod.DiscoveryMap),
@@ -38,10 +44,14 @@ export function MapModal({
   onToggleProject,
   selectedProjectIds = [],
 }: MapModalProps) {
+  const { clearRegionFromUrl } = useMapFilterSync();
   const modalRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
+  const previousZoomRef = useRef<number | null>(null);
   const [hoveredRegionId, setHoveredRegionId] = useState<number | null>(null);
   const [selectedRegionId, setSelectedRegionId] = useState<number | null>(null);
+  const [viewportBounds, setViewportBounds] = useState<LatLngBounds | null>(null);
+  const [zoom, setZoom] = useState<number>(2);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -93,16 +103,37 @@ export function MapModal({
   }, [regions, selectedRegionNames]);
 
   const { regionProjectMap, hoveredPreview } = useRegionMapData(regions, projects, hoveredRegionId);
+  const { visibleRegions } = useVisibleRegions(regions, viewportBounds);
+  const { visibleProjects, visibleNgoCount, topCategories } = useViewportProjects(visibleRegions, regionProjectMap);
+  const { recommendations } = useMapRecommendations(selectedRegionId, regions, regionProjectMap);
+  const { zoomStage } = useMapZoomLevel(zoom);
+
+  const regionProjectCounts = useMemo(() => {
+    const counts = new Map<number, number>();
+    regions.forEach((region) => counts.set(region.id, (regionProjectMap.get(region.id) ?? []).length));
+    return counts;
+  }, [regionProjectMap, regions]);
 
   const selectedRegionProjects = useMemo(() => {
-    if (selectedRegionId === null) return projects;
+    if (selectedRegionId === null) return visibleProjects;
     return regionProjectMap.get(selectedRegionId) ?? [];
-  }, [projects, regionProjectMap, selectedRegionId]);
+  }, [regionProjectMap, selectedRegionId, visibleProjects]);
 
   const selectedRegionTitle = useMemo(() => {
-    if (selectedRegionId === null) return "Tüm Bölgeler";
+    if (selectedRegionId === null) return "Makro Keşif";
     return regions.find((region) => region.id === selectedRegionId)?.name ?? "Bölge";
   }, [regions, selectedRegionId]);
+
+  const selectedPreview = useMemo(() => {
+    if (selectedRegionId === null) return null;
+    const region = regions.find((item) => item.id === selectedRegionId);
+    if (!region || region.latitude === null || region.longitude === null) return null;
+    return {
+      region,
+      projectCount: visibleProjects.length,
+      ngoCount: visibleNgoCount,
+    };
+  }, [regions, selectedRegionId, visibleProjects.length, visibleNgoCount]);
 
   function handleRegionSelect(region: MapRegion) {
     setSelectedRegionId(region.id);
@@ -148,6 +179,18 @@ export function MapModal({
                 </div>
                 <button
                   type="button"
+                  onClick={() => {
+                    setSelectedRegionId(null);
+                    setHoveredRegionId(null);
+                    mapRef.current?.flyTo([20, 20], 2, { duration: 1.05 });
+                    clearRegionFromUrl();
+                  }}
+                  className="mr-2 inline-flex min-h-10 items-center justify-center rounded-full border border-divider-softLight bg-white px-3 text-xs font-semibold text-text-secondary transition hover:bg-surface-categoryLight hover:text-text-primary"
+                >
+                  Temizle
+                </button>
+                <button
+                  type="button"
                   onClick={onClose}
                   className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-divider-softLight bg-white text-text-secondary transition hover:bg-surface-categoryLight hover:text-text-primary"
                   aria-label="Harita modalını kapat"
@@ -183,9 +226,22 @@ export function MapModal({
                         <DiscoveryMap
                           mapRef={mapRef}
                           regions={regions}
+                          regionProjectCounts={regionProjectCounts}
+                          zoomStage={zoomStage}
                           hoveredRegionId={hoveredRegionId}
                           selectedRegionId={selectedRegionId}
                           hoveredPreview={hoveredPreview}
+                          selectedPreview={selectedPreview}
+                          selectedVisibleRegionCount={visibleRegions.length}
+                          selectedTopCategories={topCategories}
+                          onViewportChange={({ bounds, zoom: nextZoom }) => {
+                            if (previousZoomRef.current !== null && previousZoomRef.current !== nextZoom) {
+                              setSelectedRegionId(null);
+                            }
+                            previousZoomRef.current = nextZoom;
+                            setViewportBounds(bounds);
+                            setZoom(nextZoom);
+                          }}
                           onHoverRegion={setHoveredRegionId}
                           onSelectRegion={handleRegionSelect}
                         />
@@ -193,14 +249,29 @@ export function MapModal({
                     </div>
                   )}
                 </div>
-                <RegionProjectSheet
-                  title={selectedRegionTitle}
-                  projects={selectedRegionProjects}
-                  onSelectProject={onToggleProject}
-                  selectedProjectIds={selectedProjectIds}
-                  ctaLabel="Projeleri Gör"
-                  onCtaClick={onClose}
-                />
+                <div className="space-y-3 overflow-y-auto">
+                  <DynamicSidebar
+                    title={zoomStage === "world" ? "Makro Keşif" : selectedRegionTitle}
+                    visibleProjectCount={visibleProjects.length}
+                    visibleNgoCount={visibleNgoCount}
+                    topCategories={topCategories}
+                    visibleRegions={visibleRegions}
+                    projects={projects}
+                    recommendations={recommendations}
+                    onSelectRegionId={(regionId) => {
+                      const region = regions.find((item) => item.id === regionId);
+                      if (region) handleRegionSelect(region);
+                    }}
+                  />
+                  <RegionProjectSheet
+                    title={selectedRegionTitle}
+                    projects={selectedRegionProjects}
+                    onSelectProject={onToggleProject}
+                    selectedProjectIds={selectedProjectIds}
+                    ctaLabel="Projeleri Gör"
+                    onCtaClick={onClose}
+                  />
+                </div>
               </div>
             </div>
           </motion.div>

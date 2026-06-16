@@ -13,5 +13,12 @@ export function useMapFilterSync() {
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }
 
-  return { applyRegionToUrl };
+  function clearRegionFromUrl() {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("bolge");
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }
+
+  return { applyRegionToUrl, clearRegionFromUrl };
 }
