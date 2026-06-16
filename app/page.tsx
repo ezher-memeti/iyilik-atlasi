@@ -104,27 +104,35 @@ export default async function HomePage() {
             </span>
             şekilde ver.
           </h1>
-          <p className="mx-auto mt-5 max-w-2xl text-center text-base leading-8 text-text-secondary sm:text-lg">
-            İyilik Atlası, kurumları ve bağış seçeneklerini aynı yerde sunarak
-            en doğru tercihi yapmanı kolaylaştırır.
-          </p>
+
           <HeroUnifiedDiscovery />
 
-          <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <div className="mt-12 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <OrganizationsPageLink
               href="/organizations"
-              className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-brand-primary px-6 text-sm font-semibold text-white transition hover:bg-brand-secondary sm:w-auto"
+              className="group inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-brand-primary px-7 text-sm font-bold text-white shadow-soft shadow-brand-primary/20 ring-1 ring-brand-primary/15 transition duration-200 hover:-translate-y-0.5 hover:bg-[#276E4B] hover:shadow-lg hover:shadow-brand-primary/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-primary sm:w-auto"
             >
-              Kurumları İncele
+              Kurumları Keşfet
+              <span
+                className="transition-transform duration-200 group-hover:translate-x-0.5"
+                aria-hidden
+              >
+                →
+              </span>
             </OrganizationsPageLink>
             <Link
               href="/bagislar"
-              className="inline-flex min-h-11 w-full items-center justify-center rounded-md border border-brand-primary/35 bg-white/80 px-6 text-sm font-semibold text-brand-primary transition hover:border-brand-primary hover:bg-surface-categoryLight sm:w-auto"
+              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-brand-primary/35 bg-surface-cardLight px-7 text-sm font-bold text-brand-primary shadow-soft shadow-brand-primary/10 ring-1 ring-divider-softLight transition-colors duration-200 hover:border-brand-primary hover:bg-surface-categoryLight hover:text-brand-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-primary sm:w-auto"
             >
               Bağış Seçeneklerini Gör
+              <span
+                aria-hidden
+              >
+                →
+              </span>
             </Link>
           </div>
-          <div className="mt-5">
+          <div className="mt-12">
             <AnimatedStats
               stats={[
                 { label: "Proje", value: projects.length },
