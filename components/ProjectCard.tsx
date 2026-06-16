@@ -69,7 +69,7 @@ export function ProjectCard({
         <div className="min-w-0">
           <div className="flex items-start justify-between gap-2">
             <Link
-              href={`/organizations/${project.organization.slug}`}
+              href={`/kurumlar/${project.organization.slug}`}
               className="group inline-flex min-w-0 items-center gap-2 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500/35 focus:ring-offset-2"
               title={`${project.organization.name} profilini görüntüle`}
               aria-label={`${project.organization.name} profiline git`}

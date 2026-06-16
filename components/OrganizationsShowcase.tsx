@@ -474,7 +474,7 @@ export function OrganizationsShowcase({
                       ) : null}
 
                       <Link
-                        href={`/organizations/${organization.slug}`}
+                        href={`/kurumlar/${organization.slug}`}
                         onClick={() => persistListStateBeforeNavigate(organization.slug)}
                         className="mt-6 inline-flex items-center text-sm font-semibold text-emerald-700 transition hover:text-emerald-800"
                       >

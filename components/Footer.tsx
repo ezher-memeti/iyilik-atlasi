@@ -7,7 +7,7 @@ const linkGroups = [
     title: "Platform",
     links: [
       { label: "Ana Sayfa", href: "/" },
-      { label: "Kurumlar", href: "/organizations" },
+      { label: "Kurumlar", href: "/kurumlar" },
       { label: "Bağışlar", href: "/bagislar" },
     ],
   },
@@ -54,7 +54,7 @@ export function Footer() {
                 <ul className="mt-4 space-y-3">
                   {group.links.map((link) => (
                     <li key={link.label}>
-                      {link.href === "/organizations" ? (
+                      {link.href === "/kurumlar" ? (
                         <OrganizationsPageLink
                           href={link.href}
                           className="text-sm text-gray-600 transition-colors duration-200 hover:text-black"

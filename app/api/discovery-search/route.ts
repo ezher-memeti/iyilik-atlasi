@@ -81,7 +81,7 @@ export async function GET(request: Request) {
       id: item.id,
       title: item.name,
       subtitle: "Kurum",
-      href: `/organizations/${item.slug?.trim() || createSlug(item.name || `ngo-${item.id}`)}`,
+      href: `/kurumlar/${item.slug?.trim() || createSlug(item.name || `ngo-${item.id}`)}`,
     }));
 
     const projectResults: SearchResultItem[] = (projectRes.data ?? []).map((item) => {

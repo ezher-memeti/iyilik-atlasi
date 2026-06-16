@@ -14,7 +14,7 @@ export function BackToOrganizationsButton() {
       // no-op
     }
 
-    router.push("/organizations");
+    router.push("/kurumlar");
   };
 
   return (

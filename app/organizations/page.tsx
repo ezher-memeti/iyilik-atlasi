@@ -15,7 +15,7 @@ export const metadata = createSeoMetadata({
     "İyilik Atlası",
     "iyilikatlasi",
   ],
-  url: "/organizations",
+  url: "/kurumlar",
 });
 
 export default async function OrganizationsPage() {

@@ -14,7 +14,7 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { href: "/", label: "Ana Sayfa" },
-  { href: "/organizations", label: "Kurumlar" },
+  { href: "/kurumlar", label: "Kurumlar" },
   { href: "/bagislar", label: "Bağışlar" },
 ];
 
@@ -116,7 +116,7 @@ export function Navbar() {
             {navItems.map((item) => {
               const active = pathname === item.href;
               const NavLinkComponent =
-                item.href === "/organizations" ? OrganizationsPageLink : Link;
+                item.href === "/kurumlar" ? OrganizationsPageLink : Link;
               return (
                 <li key={item.href}>
                   <NavLinkComponent
@@ -179,7 +179,7 @@ export function Navbar() {
             {navItems.map((item) => {
               const active = pathname === item.href;
               const NavLinkComponent =
-                item.href === "/organizations" ? OrganizationsPageLink : Link;
+                item.href === "/kurumlar" ? OrganizationsPageLink : Link;
               return (
                 <li key={item.href}>
                   <NavLinkComponent

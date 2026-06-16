@@ -109,7 +109,7 @@ export default async function HomePage() {
 
           <div className="mt-12 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <OrganizationsPageLink
-              href="/organizations"
+              href="/kurumlar"
               className="group inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-brand-primary px-7 text-sm font-bold text-white shadow-soft shadow-brand-primary/20 ring-1 ring-brand-primary/15 transition duration-200 hover:-translate-y-0.5 hover:bg-[#276E4B] hover:shadow-lg hover:shadow-brand-primary/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-primary sm:w-auto"
             >
               Kurumları Keşfet

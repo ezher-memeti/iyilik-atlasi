@@ -40,7 +40,7 @@ export async function generateMetadata({ params }: OrganizationPageProps) {
       "İyilik Atlası",
       "iyilikatlasi",
     ],
-    url: `/organizations/${organization.slug}`,
+    url: `/kurumlar/${organization.slug}`,
   });
 }
 
@@ -93,7 +93,7 @@ export default async function OrganizationProfilePage({
     name: organization.name,
     description: organization.shortDescription,
     foundingDate: organization.foundedYear,
-    url: createCanonicalUrl(`/organizations/${organization.slug}`),
+    url: createCanonicalUrl(`/kurumlar/${organization.slug}`),
     sameAs: [organization.website, organization.donationUrl].filter(Boolean),
   };
 
